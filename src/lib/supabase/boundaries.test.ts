@@ -32,4 +32,10 @@ const serviceKeyName = ['SUPABASE', 'SERVICE', 'ROLE', 'KEY'].join('_');
       expect(source).not.toMatch(/NEXT_PUBLIC_[A-Z0-9_]*SERVICE_ROLE/);
     }
   });
+  it('keeps the question bank routes away from the admin client', () => {
+    const questionFiles = sourceFiles(join(process.cwd(), 'src', 'app', 'host', 'questions'));
+    for (const file of questionFiles) {
+      expect(readFileSync(file, 'utf8'), file).not.toMatch(/from\s+['"][^'"]*lib\/supabase\/admin['"]/);
+    }
+  });
 });
