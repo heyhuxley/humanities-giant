@@ -33,4 +33,18 @@ describe('session creation import boundaries', () => {
       }
     }
   });
+
+  it('keeps player routes away from private session and answer tables', () => {
+    const appRoot = join(process.cwd(), 'src', 'app');
+    const playerFiles = [
+      ...sourceFiles(join(appRoot, 'play')),
+      ...sourceFiles(join(appRoot, 'join')),
+    ];
+
+    for (const file of playerFiles) {
+      const source = readFileSync(file, 'utf8').toLowerCase();
+      expect(source, file).not.toContain('session_private');
+      expect(source, file).not.toContain('question_answers');
+    }
+  });
 });

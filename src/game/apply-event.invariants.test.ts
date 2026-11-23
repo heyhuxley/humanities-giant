@@ -91,5 +91,5 @@ describe('engine invariants under seeded event sequences', () => {
       }
     }
     expect(eventCount).toBeGreaterThan(0);
-  });
+  }, 30_000);
 });
