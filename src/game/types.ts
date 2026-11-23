@@ -28,6 +28,12 @@ export interface SessionState {
   finishReason: FinishReason | null;
 }
 
+export type PublicSessionState = Omit<SessionState, 'lifelines'> & {
+  lifelines: Omit<Lifelines, 'phone'> & {
+    phone: Omit<Lifelines['phone'], 'hintIsCorrect'> & { hintIsCorrect: null };
+  };
+};
+
 export type GameEvent =
   | { type: 'set_contestant'; actor: Actor; participantId: string }
   | { type: 'start'; actor: Actor }
