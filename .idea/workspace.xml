@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="eb1c4547-ac44-4a16-b14c-a8b61e0b8978" name="Changes" comment="" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="AGENTS" />
+        <option value="Markdown File" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;heyhuxley&quot;
+  }
+}</component>
+  <component name="GitToolBoxStore">
+    <option name="recentBranches">
+      <RecentBranches>
+        <option name="branchesForRepo">
+          <list>
+            <RecentBranchesForRepo>
+              <option name="branches">
+                <list>
+                  <RecentBranch>
+                    <option name="branchName" value="development" />
+                    <option name="lastUsedInstant" value="1795429309" />
+                  </RecentBranch>
+                  <RecentBranch>
+                    <option name="branchName" value="main" />
+                    <option name="lastUsedInstant" value="1795427906" />
+                  </RecentBranch>
+                </list>
+              </option>
+              <option name="repositoryRootUrl" value="file://$PROJECT_DIR$" />
+            </RecentBranchesForRepo>
+          </list>
+        </option>
+      </RecentBranches>
+    </option>
+  </component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/heyhuxley/humanities-giant.git&quot;,
+    &quot;accountId&quot;: &quot;2cd75c89-75b5-4bea-b6ee-d8d61b4cb6e5&quot;
+  }
+}</component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0" />
+      <entry key="S2" value="1.0" />
+      <entry key="S5" value="1.000000013004983" />
+      <entry key="S10" value="1.0001435566547228" />
+      <entry key="S30" value="1.1129591776088779" />
+      <entry key="S60" value="1.9092662708132053" />
+      <entry key="M2" value="5.717319829412656" />
+      <entry key="M5" value="26.00829050557395" />
+      <entry key="M10" value="60.06956983098468" />
+      <entry key="M15" value="83.77421731539431" />
+      <entry key="M30" value="120.28302953298737" />
+      <entry key="H1" value="145.76124625691304" />
+      <entry key="H2" value="160.91986157761343" />
+      <entry key="H4" value="169.20336004322004" />
+      <entry key="D1" value="176.49676746835138" />
+      <entry key="W1" value="177.7843231258511" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="3.479015295211759E-74" />
+      <entry key="S2" value="4.3188098631032916E-19" />
+      <entry key="S5" value="4.509763947599603E-8" />
+      <entry key="S10" value="2.1328149431606273E-4" />
+      <entry key="S30" value="0.06949805710798838" />
+      <entry key="S60" value="0.3532306295661425" />
+      <entry key="M2" value="0.9174222312062248" />
+      <entry key="M5" value="2.002428807117233" />
+      <entry key="M10" value="3.017980874036643" />
+      <entry key="M15" value="3.623447315732259" />
+      <entry key="M30" value="4.529266065135933" />
+      <entry key="H1" value="5.168503082663611" />
+      <entry key="H2" value="5.55583572518986" />
+      <entry key="H4" value="5.770165983815436" />
+      <entry key="D1" value="5.960557234228095" />
+      <entry key="W1" value="5.994336643880104" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="0.9138314502294005" />
+      <entry key="MS500" value="0.9821395952633915" />
+      <entry key="S2" value="0.995504677670617" />
+      <entry key="S5" value="0.998199479420284" />
+      <entry key="S10" value="0.9993488638778892" />
+      <entry key="S30" value="1.1554573199344265" />
+      <entry key="S60" value="2.18355003933585" />
+      <entry key="M2" value="6.533215472888506" />
+      <entry key="M5" value="27.933616132900635" />
+      <entry key="M10" value="63.03668141189484" />
+      <entry key="M15" value="87.3595483037573" />
+      <entry key="M30" value="124.79035514539788" />
+      <entry key="H1" value="150.91782462657878" />
+      <entry key="H2" value="166.46945488982638" />
+      <entry key="H4" value="174.9703285709666" />
+      <entry key="D1" value="182.45678061509435" />
+      <entry key="W1" value="183.77858176109808" />
+    </decayedShown>
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 7,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3MVFU88uukUb6T1THLAw9benRJF" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="1" id="Add" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="autoscrollToSource" value="true" />
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;development&quot;,
+    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
+    &quot;js.debugger.nextJs.config.created.client&quot;: &quot;true&quot;,
+    &quot;js.debugger.nextJs.config.created.server&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.jshint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.jshint&quot;: &quot;&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;
+  }
+}</component>
+  <component name="ReactDesignerToolWindowState">
+    <option name="myId2Visible">
+      <map>
+        <entry key="com.intellij.reactbuddy.reactComponents" value="false" />
+        <entry key="com.intellij.reactbuddy.reactInspector" value="false" />
+      </map>
+    </option>
+  </component>
+  <component name="RunManager" selected="npm.Next.js: server-side">
+    <configuration name="Next.js: debug client-side" type="JavascriptDebugType" uri="http://localhost:3000/">
+      <method v="2" />
+    </configuration>
+    <configuration name="Next.js: server-side" type="js.build_tools.npm">
+      <package-json value="$PROJECT_DIR$/package.json" />
+      <command value="run" />
+      <scripts>
+        <script value="dev" />
+      </scripts>
+      <node-interpreter value="project" />
+      <envs />
+      <method v="2" />
+    </configuration>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-56aff7b04f6f-JavaScript-WS-263.7307.202" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="eb1c4547-ac44-4a16-b14c-a8b61e0b8978" name="Changes" comment="" />
+      <created>1795427841261</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1795427841261</updated>
+      <workItem from="1795427842303" duration="2360000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>

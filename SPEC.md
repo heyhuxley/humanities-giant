@@ -43,15 +43,15 @@ Every event is validated on the server against the current state. Anything not i
 |---|---|---|---|
 | create_session | Host | n/a | Creates a session with a unique join code and 15 chosen questions |
 | join | Anyone with the code | any state except `finished` | Adds a participant (audience by default) |
-| set_contestant | Host | `waiting` | Marks one participant as contestant |
-| start | Host | `waiting` (contestant set) | Moves to `question_active`, question 1, sets `question_ends_at` |
+| set_contestant | Host | `waiting` | Takes a participant ID and marks that participant as contestant, replacing the prior contestant |
+| start | Host | `waiting` (contestant set) | Moves to `question_active`, question 1, sets `question_ends_at` to `now + 30000` ms |
 | select_answer | Contestant | `question_active` | Stores the tentative choice |
 | lock_in | Contestant | `question_active` | Moves to `locked` |
 | timer_expired | System (server checks `question_ends_at`) | `question_active` | Moves to `locked` with no answer (counts as wrong) |
 | use_lifeline | Contestant | `question_active`, lifeline unused | Applies the lifeline (section 6) |
 | vote | Audience | `question_active` | Stores one vote per participant per question (can be changed until locked) |
 | reveal | Host | `locked` | Moves to `revealed`, applies outcome |
-| next | Host | `revealed`, question was correct, not question 15 | Moves to `question_active`, next question |
+| next | Host | `revealed`, question was correct, not question 15 | Moves to `question_active`, next question, sets `question_ends_at` to `now + 30000` ms |
 | walk_away | Contestant | `revealed`, question was correct | Moves to `finished`, keeps current amount |
 | end_session | Host | any non-finished state | Moves to `finished` |
 
@@ -85,6 +85,8 @@ Each of the three lifelines can be used **once per session**, and only by the co
 - **50:50**: removes two wrong options. The removed options are chosen once on the server and stored. Everyone sees the same two options remain.
 - **Phone a friend**: shows a canned hint. 60% of the time it points to the correct option, 40% of the time to a wrong option. The outcome is rolled once on the server and stored.
 - **Ask the audience**: shows the percentage of audience votes per option for the current question. If fewer than 3 audience votes exist, show the message "Not enough audience votes" and the lifeline is still spent.
+
+Lifeline results are stored in `SessionState`. Audience percentages use the largest remainder method: floor each exact percentage, then distribute remaining points to options with the largest fractional parts, breaking ties by lowest option index. Percentages sum to exactly 100. Check for fewer than 3 votes before calculating percentages; that result is explicitly `not_enough_votes`.
 
 ## 6.1 Timer
 
