@@ -271,3 +271,12 @@ Replacing the contestant after `waiting`. If the contestant leaves, the host end
 - A signed-in host cannot join as a player.
 - Joining is refused if the session is `finished` or already has 100 audience members. The same generic message is shown for "no such code" and "session finished".
 - Contestant selection happens later, in the waiting room, through the engine's `set_contestant` event.
+
+
+**## 15. Host role
+
+- A host is a user whose JWT has `app_metadata.role = 'host'` and whose `is_anonymous` claim is not true. Users cannot change `app_metadata`.
+- Hosts are created by the project owner. The role is set with SQL in the dashboard. There is no sign-up or self-service path to the role.
+- Public sign-ups stay enabled because anonymous sign-in requires them. An account created by anyone else has no role and can do nothing.
+- Every RLS policy and server check that says "host" uses this definition.
+- The join action refuses any signed-in user who is not anonymous.**
