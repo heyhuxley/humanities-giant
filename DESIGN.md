@@ -91,13 +91,16 @@ Respect `prefers-reduced-motion`: replace animations with simple fades.
 All images and the ones listed below in `design-reference/` folder.
 
 - `question-screen.png`:
-- `answer-reveal.png`:
 - `reveal-answer.png`:
 - `show-vibe.png`:
 - `total-prize.png`:
-- `reveal-wrong.png`:
+- `answer-reveal.png`:
 - `selected-answer.png`:
 - `prize-ladder.png`:
+- `full-round.png`:
+- `question.png`:
+- `entry.png`:
+- `detailed-question-screen.png`:
 
 ## 8. Rules for the UI slices
 
