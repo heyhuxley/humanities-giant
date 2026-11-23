@@ -249,3 +249,25 @@ Replacing the contestant after `waiting`. If the contestant leaves, the host end
 - On `reveal`, the server reads the correct index from `question_answers`, runs `applyEvent`, then writes the new full state to `session_private` and the public copy to `sessions.public_state`.
 - Realtime is enabled on `sessions` and `participants` only.
 - All schema changes are SQL files in `supabase/migrations/`. Never edit the database by hand without a matching migration.
+
+## 14. Session creation and joining
+
+### 14.1 Join codes
+- 6 characters from the alphabet `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (no 0, O, 1, I, L), generated with a cryptographic random source.
+- Player input is normalised before lookup: trimmed, uppercased, spaces and hyphens removed. Anything not matching 6 valid characters is rejected before touching the database.
+- If a generated code already exists, the server retries up to 5 times with a new code.
+
+### 14.2 Creating a session (host)
+- Requires a signed-in host.
+- The host supplies exactly 15 distinct question ids, in order. Position 1 is the first.
+- Every question must belong to the host and have an answer row. Otherwise nothing is created.
+- A new session starts in `waiting` with the engine's initial state. The full state goes in `session_private.engine_state` and the stripped copy in `sessions.public_state`.
+- All four writes happen in one database transaction. The function that does this is callable by the service role only.
+
+### 14.3 Joining (player)
+- Needs a display name (1 to 30 characters after trimming) and a valid code.
+- The server signs the player in anonymously (or reuses their existing anonymous login), then adds a `participants` row with role `audience`.
+- Joining the same session twice with the same login reuses the same row and updates the display name.
+- A signed-in host cannot join as a player.
+- Joining is refused if the session is `finished` or already has 100 audience members. The same generic message is shown for "no such code" and "session finished".
+- Contestant selection happens later, in the waiting room, through the engine's `set_contestant` event.
