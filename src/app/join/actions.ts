@@ -1,8 +1,8 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { isHostClaims } from '@/lib/auth/is-host';
-import { joinFailureMessage, HOST_JOIN_MESSAGE } from '@/lib/sessions/join-messages';
+import { isAnonymousClaims } from '@/lib/auth/is-host';
+import { joinFailureMessage, SIGNED_IN_JOIN_MESSAGE } from '@/lib/sessions/join-messages';
 import { joinSession, type JoinSessionResult } from '@/lib/sessions/join-session';
 import { parseJoinForm, type JoinFormErrors, type JoinFormValues } from '@/lib/sessions/parse-join-form';
 import { createClient } from '@/lib/supabase/server';
@@ -69,7 +69,9 @@ export async function joinSessionAction(
     return failedState(joinFailureMessage('unknown'), normalizedValues);
   }
 
-  if (isHostClaims(claims)) return failedState(HOST_JOIN_MESSAGE, normalizedValues);
+  if (getSubject(claims) !== null && !isAnonymousClaims(claims)) {
+    return failedState(SIGNED_IN_JOIN_MESSAGE, normalizedValues);
+  }
 
   let userId = getSubject(claims);
   if (userId === null) {
