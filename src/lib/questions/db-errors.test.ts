@@ -3,8 +3,6 @@ import { mapQuestionDbError } from './db-errors';
 
 describe('mapQuestionDbError', () => {
   it('maps foreign key errors to the delete message', () => {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
     expect(mapQuestionDbError({ code: '23503', message: 'private database text' })).toBe("This question is used in a session and can't be deleted.");
   });
   it.each([{}, { code: 'other', message: 'private database text' }, undefined, null])('hides unrecognized database errors', (error) => {
