@@ -1,18 +1,16 @@
 import { getWinningsOnLoss, MONEY_LADDER, QUESTION_DURATION_MS } from './constants';
+import { audiencePercentages } from './audience-percentages';
 import type { GameError, GameEvent, GameResult, SessionState } from './types';
 
 const reject = (error: GameError): GameResult => ({ ok: false, error });
 const accept = (state: SessionState): GameResult => ({ ok: true, state });
 
 export function applyEvent(state: SessionState, event: GameEvent, now: number): GameResult {
-  if (event.type === 'use_lifeline') {
-    // Lifelines are implemented in slice 1c.
-    return reject('invalid_input');
-  }
-  const allowed: Record<Exclude<GameEvent['type'], 'use_lifeline'>, SessionState['status'][]> = {
+  const allowed: Record<GameEvent['type'], SessionState['status'][]> = {
     set_contestant: ['waiting'], start: ['waiting'], select_answer: ['question_active'],
     lock_in: ['question_active'], timer_expired: ['question_active'], reveal: ['locked'],
     next: ['revealed'], walk_away: ['revealed'], end_session: ['waiting', 'question_active', 'locked', 'revealed'],
+    use_lifeline: ['question_active'],
   };
   if (!allowed[event.type].includes(state.status)) return reject('wrong_state');
   const actorAllowed = event.type === 'timer_expired'
@@ -22,13 +20,33 @@ export function applyEvent(state: SessionState, event: GameEvent, now: number): 
       : event.actor.role === 'contestant' && event.actor.id === state.contestantId;
   if (!actorAllowed) return reject('not_allowed');
   if ((event.type === 'select_answer' || event.type === 'lock_in') && now >= (state.questionEndsAt ?? Infinity)) return reject('deadline_passed');
+  if (event.type === 'use_lifeline' && now >= (state.questionEndsAt ?? Infinity)) return reject('deadline_passed');
   if (event.type === 'timer_expired' && now < (state.questionEndsAt ?? -Infinity)) return reject('too_early');
   if (event.type === 'start' && state.contestantId === null) return reject('no_contestant');
   if (event.type === 'set_contestant' && event.participantId.length === 0) return reject('invalid_input');
   if (event.type === 'lock_in' && state.selectedAnswer === null) return reject('nothing_selected');
   if ((event.type === 'select_answer' || event.type === 'reveal') && ![0, 1, 2, 3].includes(event.type === 'select_answer' ? event.option : event.correctIndex)) return reject('invalid_input');
+  if (event.type === 'use_lifeline') {
+    const result = state.lifelines[event.lifeline.lifeline === 'fifty_fifty' ? 'fiftyFifty' : event.lifeline.lifeline === 'phone' ? 'phone' : 'audience'];
+    if (result.used) return reject('lifeline_used');
+    const payload = event.lifeline;
+    if (payload.lifeline === 'fifty_fifty' && (!Array.isArray(payload.remove) || payload.remove.length !== 2 || payload.remove[0] === payload.remove[1] || payload.remove.some((option) => ![0, 1, 2, 3].includes(option)))) return reject('invalid_input');
+    if (payload.lifeline === 'phone' && (![0, 1, 2, 3].includes(payload.hint) || typeof payload.hintIsCorrect !== 'boolean')) return reject('invalid_input');
+    if (payload.lifeline === 'audience' && (!Array.isArray(payload.voteCounts) || payload.voteCounts.length !== 4 || payload.voteCounts.some((count) => !Number.isInteger(count) || count < 0))) return reject('invalid_input');
+  }
 
   switch (event.type) {
+    case 'use_lifeline': {
+      const lifelines = { ...state.lifelines };
+      const payload = event.lifeline;
+      if (payload.lifeline === 'fifty_fifty') lifelines.fiftyFifty = { used: true, usedAtPosition: state.position, removed: [payload.remove[0], payload.remove[1]] };
+      else if (payload.lifeline === 'phone') lifelines.phone = { used: true, usedAtPosition: state.position, hint: payload.hint, hintIsCorrect: payload.hintIsCorrect };
+      else {
+        const audience = audiencePercentages(payload.voteCounts);
+        lifelines.audience = { used: true, usedAtPosition: state.position, percentages: audience.percentages, notEnoughVotes: audience.notEnoughVotes };
+      }
+      return accept({ ...state, lifelines });
+    }
     case 'set_contestant': return accept({ ...state, contestantId: event.participantId });
     case 'start': return accept({ ...state, status: 'question_active', position: 1, questionEndsAt: now + QUESTION_DURATION_MS });
     case 'select_answer': return accept({ ...state, selectedAnswer: event.option });

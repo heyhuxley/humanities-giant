@@ -39,7 +39,7 @@ describe('applyEvent transitions', () => {
     expect(resultState(run(s, { type: 'timer_expired', actor: system }, 100)).status).toBe('locked');
     expect(run(s, { type: 'start', actor: host })).toMatchObject({ ok: false, error: 'wrong_state' });
     expect(run(s, { type: 'lock_in', actor: { ...player, id: 'other' } })).toMatchObject({ ok: false, error: 'not_allowed' });
-    expect(run(s, { type: 'use_lifeline', actor: player, lifeline: { lifeline: 'phone', hint: 0, hintIsCorrect: false } })).toMatchObject({ ok: false, error: 'invalid_input' });
+    expect(run(s, { type: 'use_lifeline', actor: player, lifeline: { lifeline: 'phone', hint: 4 as never, hintIsCorrect: false } }, 99)).toMatchObject({ ok: false, error: 'invalid_input' });
   });
   it('does not mutate frozen input and handles loss, timeout and final win', () => {
     const frozen = deepFreeze(active());
