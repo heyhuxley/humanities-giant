@@ -222,3 +222,30 @@ A rejection returns `{ ok: false, error }` with one of: `wrong_state`, `not_allo
 
 ### 12.10 Out of scope
 Replacing the contestant after `waiting`. If the contestant leaves, the host ends the session.
+
+## 13. Database schema and access rules
+
+### 13.1 Tables
+- `questions`: id (uuid), subject (english | economics | government | literature), difficulty (easy | medium | hard), text, options (jsonb array of exactly 4 strings), created_by (uuid, auth user), created_at
+- `question_answers`: question_id (pk, references questions, cascade), correct_index (0 to 3)
+- `sessions`: id (uuid), code (unique, 6 characters), host_id (uuid), public_state (jsonb, engine state with hintIsCorrect set to null), current_question (jsonb: id, text, options only, or null), created_at
+- `session_private`: session_id (pk, references sessions, cascade), engine_state (jsonb, the full engine state)
+- `session_questions`: session_id, position (1 to 15), question_id. Primary key (session_id, position)
+- `participants`: id (uuid), session_id, user_id (uuid), display_name, role (contestant | audience). Unique (session_id, user_id)
+- `votes`: session_id, position, participant_id, option_index (0 to 3). Primary key (session_id, position, participant_id)
+
+### 13.2 Access rules (RLS on every table)
+- Hosts are signed-in, non-anonymous users. Players are anonymous users.
+- `questions`: a host can create, read, update and delete only rows they created. Players: no access.
+- `question_answers`: same host rule through the question's owner. Players: no access, ever.
+- `sessions`: a user can read a session if they are its host or one of its participants. No client writes.
+- `participants`: a user can read participants of any session they belong to. No client writes.
+- `session_questions`: the session's host can read. No client writes.
+- `session_private` and `votes`: no client access. Server only.
+- All writes to sessions, session_private, session_questions, participants and votes go through server code using the service role.
+
+### 13.3 Flow rules
+- On `start` and `next`, the server copies the new question's id, text and options (never the answer) into `sessions.current_question`.
+- On `reveal`, the server reads the correct index from `question_answers`, runs `applyEvent`, then writes the new full state to `session_private` and the public copy to `sessions.public_state`.
+- Realtime is enabled on `sessions` and `participants` only.
+- All schema changes are SQL files in `supabase/migrations/`. Never edit the database by hand without a matching migration.
