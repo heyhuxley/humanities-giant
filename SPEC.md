@@ -280,3 +280,34 @@ Replacing the contestant after `waiting`. If the contestant leaves, the host end
 - Public sign-ups stay enabled because anonymous sign-in requires them. An account created by anyone else has no role and can do nothing.
 - Every RLS policy and server check that says "host" uses this definition.
 - The join action refuses any signed-in user who is not anonymous.**
+
+## 16. Transitions and live updates
+
+### 16.1 Who is the caller
+- The server identifies the caller from the verified login (never from form fields).
+- Host events: the caller must hold the host role (section 15) and own the session.
+- Contestant events: the server finds the caller's participants row in that session. The engine actor is `{ id: <that participant id>, role: 'contestant' }`. `contestantId` in the engine state is a participant id.
+
+### 16.2 Running an event
+1. Load `session_private` (engine_state and version) with the admin client.
+2. Call `applyEvent(state, event, Date.now())`.
+3. If the engine rejects, return the engine's error code to the caller. Nothing is written.
+4. If it accepts, commit through the `commit_transition` function.
+
+### 16.3 commit_transition
+- Callable by the service role only. One transaction.
+- Updates `session_private.engine_state` and increments `version`, only where `version` equals the version read in 16.2. If no row matches, it raises error code PJ003 (conflict).
+- Updates `sessions.public_state` (the toPublicState copy) and `sessions.current_question`.
+- When the event is `set_contestant`, it also sets the previous contestant's participants.role to `audience` and the new contestant's to `contestant`.
+
+### 16.4 Conflicts
+On PJ003 the server reloads and tries again once. The engine decides again on the fresh state, so an event that is no longer valid is rejected normally. A second conflict returns a "try again" error.
+
+### 16.5 current_question
+Set to `{ id, text, options }` of the question at the current position when the status becomes `question_active`. Never contains the correct answer. Cleared when the session is `waiting` or `finished`.
+
+### 16.6 Live updates
+- Clients subscribe to the `sessions` row for their session and to `participants` for their session, with Postgres Changes. RLS limits what each client receives.
+- Pattern: subscribe, then fetch current data, then apply changes. On every reconnect, fetch again. Missed events are never assumed to arrive.
+- The waiting-room roster is the `participants` table. Presence is not used in v1.
+- Accepted for v1: realtime payloads include `user_id` for participants in the same session.
