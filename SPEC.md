@@ -139,3 +139,86 @@ Leaderboards across sessions, multiple hosts editing one session live, payments 
 8. Lifelines
 9. Host control screen and results
 10. Styling, animation, sound
+
+## 12. Engine data shapes
+
+### 12.1 Conventions
+- `applyEvent(state, event, now)`: `now` is epoch milliseconds (UTC), passed in, never read from a clock.
+- Money is integer naira. Option indexes are `0 | 1 | 2 | 3` (A to D). `position` is 1 to 15.
+- The engine never receives or stores the correct answer before `reveal`.
+- `createInitialState()` returns a fresh `waiting` state (a pure function).
+
+### 12.2 SessionState
+| Field | Type | Meaning |
+|---|---|---|
+| status | `waiting \| question_active \| locked \| revealed \| finished` | Current state |
+| position | number | 0 while `waiting`, then 1 to 15 |
+| contestantId | string \| null | Chosen contestant |
+| questionEndsAt | number \| null | Deadline (epoch ms) for the active question |
+| selectedAnswer | option \| null | Tentative choice |
+| lockedAnswer | option \| null | Locked choice. Stays null after a timeout |
+| correctIndex | option \| null | **Null until `reveal`**, then the correct option |
+| lastResult | `correct \| wrong \| timeout \| null` | Result of the revealed question |
+| lifelines | see 12.3 | Used flags and stored results |
+| winnings | number \| null | Null until `finished` |
+| finishReason | `won \| wrong \| timeout \| walked_away \| ended_by_host \| null` | Why the game ended |
+
+### 12.3 Lifelines
+```
+lifelines: {
+  fiftyFifty: { used: boolean, usedAtPosition: number | null, removed: [option, option] | null }
+  phone:      { used: boolean, usedAtPosition: number | null, hint: option | null, hintIsCorrect: boolean | null }
+  audience:   { used: boolean, usedAtPosition: number | null, percentages: [n, n, n, n] | null, notEnoughVotes: boolean }
+}
+```
+A stored result applies only to the question at `usedAtPosition`. Used flags last for the whole session.
+
+### 12.4 Events
+Every event carries `actor: { id: string, role: 'host' | 'contestant' | 'system' }`.
+
+| Event | Extra fields | Allowed actor | Allowed in |
+|---|---|---|---|
+| set_contestant | participantId | host | waiting |
+| start | none | host | waiting (contestant set) |
+| select_answer | option | contestant (id must equal contestantId) | question_active |
+| lock_in | none | contestant | question_active |
+| timer_expired | none | system | question_active |
+| use_lifeline | see 12.5 | contestant | question_active |
+| reveal | correctIndex | host | locked |
+| next | none | host | revealed |
+| walk_away | none | contestant | revealed (result correct) |
+| end_session | none | host | any state except finished |
+
+### 12.5 use_lifeline variants
+- `{ lifeline: 'fifty_fifty', remove: [option, option] }`: two different options. The caller guarantees neither is the correct one (the engine cannot know). The engine checks only that they are valid and distinct.
+- `{ lifeline: 'phone', hint: option, hintIsCorrect: boolean }`
+- `{ lifeline: 'audience', voteCounts: [n, n, n, n] }`: non-negative integers. The engine computes percentages with the largest remainder method (section 6) and sets `notEnoughVotes` when the total is under 3.
+
+### 12.6 Time rules
+- `select_answer`, `lock_in`, `use_lifeline` are accepted only if `now < questionEndsAt`.
+- `timer_expired` is accepted only if `now >= questionEndsAt`. It moves to `locked` with `lockedAnswer` null.
+- `start` and `next` set `questionEndsAt = now + 30000`.
+
+### 12.7 Transition effects
+- `start`: position 1, status `question_active`.
+- `next`: position + 1, clears `selectedAnswer`, `lockedAnswer`, `correctIndex`, `lastResult`. Lifeline flags stay.
+- `lock_in`: `lockedAnswer = selectedAnswer`. Rejected if nothing is selected.
+- `reveal`: sets `correctIndex` and `lastResult`.
+  - Correct and position < 15: status `revealed`.
+  - Correct at position 15: status `finished`, reason `won`, winnings 500000.
+  - Wrong or timeout: status `finished`, reason `wrong` or `timeout`, winnings per 12.8.
+  - On `finished`, the answer fields stay filled so the UI can still show the reveal.
+- `walk_away`: status `finished`, reason `walked_away`, winnings = amount of the current position.
+- `end_session`: status `finished`, reason `ended_by_host`, winnings = last correctly answered amount (0 if none).
+
+### 12.8 Winnings on a loss
+Wrong or timeout at position p pays the amount of the highest milestone below p. A milestone counts only once its question is answered correctly.
+- p 1 to 5: 0
+- p 6 to 10: 30000
+- p 11 to 15: 100000
+
+### 12.9 Errors
+A rejection returns `{ ok: false, error }` with one of: `wrong_state`, `not_allowed`, `deadline_passed`, `too_early`, `lifeline_used`, `invalid_input`, `no_contestant`, `nothing_selected`.
+
+### 12.10 Out of scope
+Replacing the contestant after `waiting`. If the contestant leaves, the host ends the session.
