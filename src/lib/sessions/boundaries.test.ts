@@ -17,15 +17,18 @@ describe('session creation import boundaries', () => {
       const normalizedPath = file.replaceAll('\\', '/');
       const clientFile = /^\s*(['"])use client\1/m.test(source);
       const createSessionImport = /from\s+['"][^'"]*sessions\/create-session['"]/m.test(source);
+      const joinSessionImport = /from\s+['"][^'"]*sessions\/join-session['"]/m.test(source);
       const adminImport = /from\s+['"][^'"]*supabase\/admin['"]/m.test(source);
 
       if (createSessionImport) {
         expect(normalizedPath).toMatch(/\/src\/app\/host\/sessions\/actions\.ts$/);
         expect(source).toMatch(/import\s+\{\s*createSession\s*\}\s+from\s+['"][^'"]*sessions\/create-session['"]/m);
       }
+      if (joinSessionImport) expect(normalizedPath).toMatch(/\/actions\.ts$/);
       expect(adminImport, file).toBe(false);
       if (clientFile) {
         expect(createSessionImport, file).toBe(false);
+        expect(joinSessionImport, file).toBe(false);
         expect(adminImport, file).toBe(false);
       }
     }
