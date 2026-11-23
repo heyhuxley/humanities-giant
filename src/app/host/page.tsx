@@ -20,6 +20,7 @@ export default async function HostPage() {
     <main>
       <p>Signed in as {email}</p>
       <p><Link href="/host/questions">Manage question bank</Link></p>
+      <p><Link href="/host/sessions/new">Create a session</Link></p>
       <form action={signOut}><button type="submit">Sign out</button></form>
     </main>
   );
