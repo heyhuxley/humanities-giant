@@ -1,7 +1,15 @@
 import { notFound } from 'next/navigation';
+import { readCurrentQuestion, readPublicState } from '../../../lib/sessions/read-public-state';
 import { createClient } from '../../../lib/supabase/server';
+import { LiveSessionRefresh } from './live-session-refresh';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+
+type Participant = {
+  id: string;
+  display_name: string;
+  role: 'contestant' | 'audience';
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -12,7 +20,33 @@ function readUserId(claims: unknown): string | null {
   return claims.sub;
 }
 
-export default async function PlayPage({ params }: { params: Promise<{ sessionId: string }> }) {
+function readParticipant(value: unknown): Participant | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.display_name !== 'string' ||
+    (value.role !== 'contestant' && value.role !== 'audience')
+  ) {
+    return null;
+  }
+  return { id: value.id, display_name: value.display_name, role: value.role };
+}
+
+function statusLabel(status: string): string {
+  const words = status.replaceAll('_', ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function reasonLabel(reason: string): string {
+  const words = reason.replaceAll('_', ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+export default async function PlayPage({
+  params,
+}: {
+  params: Promise<{ sessionId: string }>;
+}) {
   const { sessionId } = await params;
   if (!UUID_PATTERN.test(sessionId)) notFound();
 
@@ -32,34 +66,114 @@ export default async function PlayPage({ params }: { params: Promise<{ sessionId
   }
   if (userId === null) notFound();
 
-  let queryResult: { session: unknown; participant: unknown; failed: boolean } | null = null;
+  let queryResult:
+    | { session: unknown; participant: unknown; roster: unknown; failed: boolean }
+    | null = null;
   try {
-    const [sessionResult, participantResult] = await Promise.all([
-      supabase.from('sessions').select('id, public_state').eq('id', sessionId).maybeSingle(),
-      supabase.from('participants').select('display_name').eq('session_id', sessionId).eq('user_id', userId).maybeSingle(),
+    const [sessionResult, participantResult, rosterResult] = await Promise.all([
+      supabase
+        .from('sessions')
+        .select('id, public_state, current_question')
+        .eq('id', sessionId)
+        .maybeSingle(),
+      supabase
+        .from('participants')
+        .select('id, display_name, role')
+        .eq('session_id', sessionId)
+        .eq('user_id', userId)
+        .maybeSingle(),
+      supabase
+        .from('participants')
+        .select('id, display_name, role')
+        .eq('session_id', sessionId)
+        .order('display_name')
+        .order('id'),
     ]);
     queryResult = {
       session: sessionResult.data,
       participant: participantResult.data,
-      failed: Boolean(sessionResult.error || participantResult.error),
+      roster: rosterResult.data,
+      failed: Boolean(sessionResult.error || participantResult.error || rosterResult.error),
     };
   } catch {
     notFound();
   }
 
-  if (!queryResult || queryResult.failed || queryResult.session === null || queryResult.participant === null) notFound();
+  if (
+    !queryResult ||
+    queryResult.failed ||
+    !isRecord(queryResult.session) ||
+    queryResult.session.id !== sessionId ||
+    !Array.isArray(queryResult.roster)
+  ) {
+    notFound();
+  }
 
-  const session: unknown = queryResult.session;
-  const participant: unknown = queryResult.participant;
-  if (!isRecord(session) || !isRecord(participant) || typeof participant.display_name !== 'string') notFound();
-  if (!isRecord(session.public_state) || typeof session.public_state.status !== 'string') notFound();
+  const player = readParticipant(queryResult.participant);
+  const roster = queryResult.roster.map(readParticipant);
+  const publicState = readPublicState(queryResult.session.public_state);
+  const currentQuestion = readCurrentQuestion(queryResult.session.current_question);
+  if (!player || !publicState || roster.some((entry) => entry === null)) notFound();
+
+  const participants = roster.filter((entry): entry is Participant => entry !== null);
+  const isWaiting = publicState.status === 'waiting';
 
   return (
     <main className="mx-auto w-full max-w-xl space-y-6 p-6">
-      <h1 className="text-2xl font-bold">You joined the game</h1>
-      <p>Playing as <span className="font-semibold">{participant.display_name}</span></p>
-      <p>Status: <span className="font-medium">{session.public_state.status}</span></p>
-      <p className="rounded-lg bg-stone-100 p-4">You&apos;re in. The waiting room comes next.</p>
+      <header className="space-y-2">
+        <h1 className="text-2xl font-bold">Who Wants to Be a Humanities Giant</h1>
+        <LiveSessionRefresh sessionId={sessionId} />
+      </header>
+
+      <section className="space-y-2">
+        <p>
+          Playing as <span className="font-semibold">{player.display_name}</span>
+        </p>
+        {player.role === 'contestant' ? (
+          <p className="rounded bg-amber-100 p-3 font-semibold">You are in the hot seat</p>
+        ) : null}
+      </section>
+
+      {isWaiting ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Waiting for the host to start</h2>
+          <h3 className="font-medium">Players</h3>
+          <ul className="space-y-2">
+            {participants.map((participant) => (
+              <li key={participant.id}>
+                <span>{participant.display_name}</span>
+                {participant.role === 'contestant' ? <span> (Contestant)</span> : null}
+                {participant.id === player.id ? <span> (you)</span> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Status: {statusLabel(publicState.status)}</h2>
+          {currentQuestion ? (
+            <div className="space-y-2">
+              <p>{currentQuestion.text}</p>
+              <ol className="list-inside list-decimal space-y-1">
+                {currentQuestion.options.map((option, index) => <li key={index}>{option}</li>)}
+              </ol>
+            </div>
+          ) : null}
+          {publicState.status === 'finished' ? (
+            <div className="space-y-1">
+              {publicState.winnings !== null ? (
+                <p>Winnings: ₦{publicState.winnings.toLocaleString('en-NG')}</p>
+              ) : null}
+              {publicState.finishReason ? (
+                <p>Finish reason: {reasonLabel(publicState.finishReason)}</p>
+              ) : null}
+            </div>
+          ) : null}
+          <p className="rounded-lg bg-stone-100 p-4">
+            Answering comes in a later update.
+          </p>
+        </section>
+      )}
     </main>
   );
 }
