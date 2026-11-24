@@ -1,5 +1,4 @@
 'use client';
-import '@/lib/sessions/session-event-deps'
 
 import { useActionState } from 'react';
 import {

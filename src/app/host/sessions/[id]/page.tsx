@@ -1,4 +1,3 @@
-import '@/lib/sessions/session-event-deps'
 import { notFound } from 'next/navigation';
 import { requireHost } from '@/lib/auth/require-host';
 import { createClient } from '@/lib/supabase/server';
