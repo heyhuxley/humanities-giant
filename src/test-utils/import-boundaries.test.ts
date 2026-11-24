@@ -167,13 +167,46 @@ describe('checkBoundaries', () => {
     expect(findAnswerDataFiles([
       { path: 'src/lib/sessions/answer-deps.ts', source: "from('question_answers')" },
       { path: 'src/app/host/questions.tsx', source: '.select("correct_index")' },
+      { path: 'src/lib/sessions/comment.ts', source: '// correct_index must stay private' },
       { path: 'src/lib/sessions/safe.ts', source: 'export const value = 1;' },
       { path: 'src/lib/sessions/example.test.ts', source: 'question_answers correct_index' },
       { path: 'src/app/host/questions.js', source: 'question_answers' },
     ])).toEqual([
       'src/app/host/questions.tsx',
       'src/lib/sessions/answer-deps.ts',
+      'src/lib/sessions/comment.ts',
     ]);
+  });
+
+  it('allows cast vote at runtime only from app actions and forbids client imports', () => {
+    const castVote = '@/lib/sessions/cast-vote';
+    expect(violations(
+      'src/app/play/actions.ts',
+      `import { castVote } from '${castVote}';`,
+    )).toEqual([]);
+    expectRule(
+      violations('src/app/play/page.tsx', `import { castVote } from '${castVote}';`),
+      'cast-vote-importer',
+    );
+    expectRule(
+      violations('src/lib/sessions/other.ts', `import { castVote } from '${castVote}';`),
+      'cast-vote-importer',
+    );
+    expectRule(
+      violations('src/components/vote.tsx', `'use client';\nimport type { VoteOption } from '${castVote}';`),
+      'client-import',
+    );
+    expect(violations(
+      'src/lib/sessions/other.ts',
+      `import type { VoteOption } from '${castVote}';`,
+    )).toEqual([]);
+  });
+
+  it('allows the admin import in cast vote server module', () => {
+    expect(violations(
+      'src/lib/sessions/cast-vote.ts',
+      `import { createAdminClient } from '${ADMIN}';`,
+    )).toEqual([]);
   });
 
   it('exempts only test file name endings', () => {

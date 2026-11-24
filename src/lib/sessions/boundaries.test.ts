@@ -5,7 +5,9 @@ import {
   checkBoundaries,
   extractImports,
   findAnswerDataFiles,
+  isActionFile,
   isClientFile,
+  isTypeOnlyImport,
   resolveSpecifier,
 } from '../../test-utils/import-boundaries';
 
@@ -26,6 +28,7 @@ function sourceFiles(directory: string): SourceFile[] {
 describe('session import boundaries', () => {
   const files = sourceFiles(join(process.cwd(), 'src'));
   const answerDataFiles = findAnswerDataFiles(files);
+  const castVoteFile = files.find((file) => file.path === 'src/lib/sessions/cast-vote.ts');
 
   it('scans all source files and rejects every forbidden import', () => {
     const paths = new Set(files.map((file) => file.path));
@@ -122,6 +125,34 @@ describe('session import boundaries', () => {
         expect(importsAnswerDeps, file.path).toBe(false);
       }
       if (isClientFile(file.source)) expect(importsAnswerDeps, file.path).toBe(false);
+    }
+  });
+
+  it('keeps answer field names out of the cast vote module', () => {
+    expect(castVoteFile).toBeDefined();
+    expect(answerDataFiles).not.toContain('src/lib/sessions/cast-vote.ts');
+  });
+
+  it('limits cast vote runtime imports to app actions and excludes client files', () => {
+    const castVoteImports = files.filter((file) =>
+      extractImports(file.source).some((specifier) =>
+        resolveSpecifier(specifier, file.path) === 'src/lib/sessions/cast-vote',
+      ),
+    );
+
+    for (const file of castVoteImports) {
+      const importedSpecifiers = extractImports(file.source).filter((specifier) =>
+        resolveSpecifier(specifier, file.path) === 'src/lib/sessions/cast-vote',
+      );
+      if (isClientFile(file.source)) expect(importedSpecifiers).toEqual([]);
+      for (const specifier of importedSpecifiers) {
+        if (
+          !file.path.endsWith('.test.ts')
+          && !isTypeOnlyImport(file.source, specifier)
+        ) {
+          expect(isActionFile(file.path), file.path).toBe(true);
+        }
+      }
     }
   });
 });

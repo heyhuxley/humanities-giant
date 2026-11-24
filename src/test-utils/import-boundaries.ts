@@ -11,6 +11,7 @@ const MODULES = {
   admin: 'src/lib/supabase/admin',
   sessionEventDeps: 'src/lib/sessions/session-event-deps',
   answerDeps: 'src/lib/sessions/answer-deps',
+  castVote: 'src/lib/sessions/cast-vote',
   runSessionEvent: 'src/lib/sessions/run-session-event',
   createSession: 'src/lib/sessions/create-session',
   joinSession: 'src/lib/sessions/join-session',
@@ -37,11 +38,11 @@ function isUnder(path: string, directory: string): boolean {
   return path === directory || path.startsWith(`${directory}/`);
 }
 
-function isActionFile(path: string): boolean {
+export function isActionFile(path: string): boolean {
   return isUnder(path, 'src/app') && path.split('/').at(-1) === 'actions.ts';
 }
 
-function isTypeOnlyImport(source: string, specifier: string): boolean {
+export function isTypeOnlyImport(source: string, specifier: string): boolean {
   const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(
     `\\bimport\\s+type\\s+(?:(?:(?!\\bimport\\s)[\\s\\S])*?\\s+from\\s+)?(['"])${escaped}\\1`,
@@ -122,6 +123,7 @@ export function checkBoundaries(
     'src/lib/sessions/join-session',
     MODULES.sessionEventDeps,
     MODULES.answerDeps,
+    MODULES.castVote,
   ]);
   const sessionModules = [
     MODULES.runSessionEvent,
@@ -141,6 +143,7 @@ export function checkBoundaries(
       const importsAdmin = matchesModule(specifier, resolved, MODULES.admin);
       const importsDeps = matchesModule(specifier, resolved, MODULES.sessionEventDeps);
       const importsAnswerDeps = matchesModule(specifier, resolved, MODULES.answerDeps);
+      const importsCastVote = matchesModule(specifier, resolved, MODULES.castVote);
       const importsSessionModule = sessionModules.some((target) =>
         matchesModule(specifier, resolved, target),
       );
@@ -161,6 +164,10 @@ export function checkBoundaries(
         violations.push({ file: file.path, rule: 'answer-deps-importer', specifier });
       }
 
+      if (importsCastVote && !actionFile && !isTypeOnlyImport(file.source, specifier)) {
+        violations.push({ file: file.path, rule: 'cast-vote-importer', specifier });
+      }
+
       if (
         importsSessionModule &&
         !isUnder(filePath, 'src/lib/sessions') &&
@@ -170,7 +177,8 @@ export function checkBoundaries(
       }
 
       if (clientFile && (
-        importsAdmin || importsDeps || importsAnswerDeps || importsSessionModule || importsRequireHost
+        importsAdmin || importsDeps || importsAnswerDeps || importsCastVote ||
+        importsSessionModule || importsRequireHost
       )) {
         violations.push({ file: file.path, rule: 'client-import', specifier });
       }
