@@ -428,3 +428,11 @@ shown. It is cleared only in `waiting`.
 - Vote: the verified user id and the option go to the vote function. Only audience participants can vote.
 - Timer knock: allowed for any caller who can read the session through their own access rules (a participant or the host). The server sends `timer_expired` with the system actor. An early or repeated knock is a harmless no-op, not an error.
 - Timer knocks and votes are not rate limited in v1 (see the v2 list).
+
+### 18.7 Answering screens
+- The page decides the role from the caller's participant row: the participant whose id equals `contestantId` in the public state is the contestant, everyone else is audience.
+- The countdown uses the server's time sent with each page render. The client keeps an offset between the server's clock and its own and counts down to `questionEndsAt` using it. The server deadline stays the only authority.
+- When the countdown reaches zero while the question is still open, each client sends the timer knock after a random delay of 0 to 800 ms and repeats every 2 seconds until the page state changes. At most one knock is in flight per client.
+- The contestant's tentative choice is local to their browser and cleared when the question changes. A final answer needs a second confirming tap.
+- The audience's chosen option is also local. Votes cannot be read back from the server, so after a reload the highlight is gone but the vote counts. Voting again replaces it.
+- After the answer is locked, all screens show the locked option and "Waiting for the host to reveal". The correct answer is never shown before the reveal.
