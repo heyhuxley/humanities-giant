@@ -10,6 +10,21 @@ function sourceFiles(directory: string): string[] {
 }
 
 describe('session creation import boundaries', () => {
+  it('limits admin client imports to server data modules', () => {
+    const files = sourceFiles(join(process.cwd(), 'src'));
+    const allowed = new Set([
+      join(process.cwd(), 'src', 'lib', 'sessions', 'create-session.ts').replaceAll('\\', '/'),
+      join(process.cwd(), 'src', 'lib', 'sessions', 'join-session.ts').replaceAll('\\', '/'),
+      join(process.cwd(), 'src', 'lib', 'sessions', 'session-event-deps.ts').replaceAll('\\', '/'),
+    ]);
+
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+      const importsAdmin = /from\s+['"][^'"]*supabase\/admin['"]/m.test(source);
+      if (importsAdmin) expect(allowed.has(file.replaceAll('\\', '/')), file).toBe(true);
+    }
+  });
+
   it('keeps session creation and the admin client out of app files except the authorized action import', () => {
     const files = sourceFiles(join(process.cwd(), 'src', 'app'));
     for (const file of files) {
@@ -42,14 +57,43 @@ describe('session creation import boundaries', () => {
       const clientFile = /^\s*(['"])use client\1/m.test(source);
       const runSessionEventImport =
         /(?:from\s+|import\s*\(|require\s*\()\s*['"][^'"]*run-session-event['"]/m.test(source);
+      const sessionEventDepsImport =
+        /(?:from\s+|import\s*\(|require\s*\()\s*['"][^'"]*session-event-deps['"]/m.test(source);
+      const adminImport = /(?:from\s+|import\s*\(|require\s*\()\s*['"][^'"]*supabase\/admin['"]/m.test(source);
 
       if (runSessionEventImport) {
         expect(normalizedPath).toMatch(
           /\/src\/(?:lib\/sessions\/[^/]+|app\/(?:.*\/)?actions\.ts)$/,
         );
       }
-      if (clientFile) expect(runSessionEventImport, file).toBe(false);
+      if (sessionEventDepsImport && !normalizedPath.endsWith('.test.ts')) {
+        expect(normalizedPath).toMatch(/\/src\/app\/(?:.*\/)?actions\.ts$/);
+      }
+      if (clientFile) {
+        expect(runSessionEventImport, file).toBe(false);
+        expect(sessionEventDepsImport, file).toBe(false);
+        expect(adminImport, file).toBe(false);
+      }
     }
+  });
+
+  it('keeps private tables and answer fields out of host session pages', () => {
+    const files = sourceFiles(join(process.cwd(), 'src', 'app', 'host', 'sessions'));
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8').toLowerCase();
+      expect(source, file).not.toContain('session_private');
+      expect(source, file).not.toContain('question_answers');
+    }
+  });
+
+  it('keeps the session event dependency query away from answer data', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src', 'lib', 'sessions', 'session-event-deps.ts'),
+      'utf8',
+    ).toLowerCase();
+    expect(source).not.toContain('question_answers');
+    expect(source).not.toContain('correct_index');
+    expect(source).not.toContain("select('*')");
   });
 
   it('keeps player routes away from private session and answer tables', () => {

@@ -80,7 +80,10 @@ export async function runSessionEvent(
       const publicState = toPublicState(newState);
       let currentQuestion: CurrentQuestion | null = null;
 
-      if (newState.status === 'question_active') {
+      if (
+        newState.status === 'question_active' &&
+        (input.event.type === 'start' || input.event.type === 'next')
+      ) {
         const question = await deps.loadQuestionAt(input.sessionId, newState.position);
         if (question === null) return { ok: false, reason: 'unknown' };
         currentQuestion = buildCurrentQuestion(
@@ -88,6 +91,7 @@ export async function runSessionEvent(
           questionRecord(question),
         );
       } else if (
+        newState.status === 'question_active' ||
         newState.status === 'locked' ||
         newState.status === 'revealed' ||
         newState.status === 'finished'

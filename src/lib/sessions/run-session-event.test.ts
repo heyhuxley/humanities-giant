@@ -151,6 +151,7 @@ describe('runSessionEvent', () => {
 
     expect(result).toEqual({ ok: true, version: 8 });
     expect(deps.loadQuestionAt).toHaveBeenCalledWith(sessionId, 1);
+    expect(deps.loadQuestionAt).toHaveBeenCalledTimes(1);
     expect(deps.commit).toHaveBeenCalledWith(
       expect.objectContaining({
         p_expected_version: 7,
@@ -173,6 +174,109 @@ describe('runSessionEvent', () => {
       'text',
     ]);
     expect(JSON.stringify(committed)).not.toContain('correct_index');
+  });
+
+  it.each([
+    {
+      name: 'select_answer',
+      state: {
+        ...createInitialState(),
+        status: 'question_active' as const,
+        position: 1,
+        contestantId: participantId,
+        questionEndsAt: 200,
+      },
+      event: makeEvent({
+        type: 'select_answer',
+        actor: { id: participantId, role: 'contestant' },
+        option: 2,
+      }),
+    },
+    {
+      name: 'lock_in',
+      state: {
+        ...createInitialState(),
+        status: 'question_active' as const,
+        position: 1,
+        contestantId: participantId,
+        questionEndsAt: 200,
+        selectedAnswer: 2 as const,
+      },
+      event: makeEvent({
+        type: 'lock_in',
+        actor: { id: participantId, role: 'contestant' },
+      }),
+    },
+    {
+      name: 'use_lifeline',
+      state: {
+        ...createInitialState(),
+        status: 'question_active' as const,
+        position: 1,
+        contestantId: participantId,
+        questionEndsAt: 200,
+      },
+      event: makeEvent({
+        type: 'use_lifeline',
+        actor: { id: participantId, role: 'contestant' },
+        lifeline: { lifeline: 'phone', hint: 2, hintIsCorrect: true },
+      }),
+    },
+  ])('$name reuses the stored question during question_active', async ({ state, event }) => {
+    const deps = makeDeps(state);
+
+    await expect(runSessionEvent(deps, { sessionId, event })).resolves.toMatchObject({
+      ok: true,
+    });
+
+    expect(deps.loadQuestionAt).not.toHaveBeenCalled();
+    expect(vi.mocked(deps.commit).mock.calls[0][0].p_current_question).toEqual(question);
+  });
+
+  it.each([
+    ['missing', null],
+    ['malformed', { id: question.id, text: question.text, options: ['A', 'B', 'C'] }],
+  ])('returns unknown for a %s stored question during question_active events', async (_label, currentQuestion) => {
+    const state = {
+      ...createInitialState(),
+      status: 'question_active' as const,
+      position: 1,
+      contestantId: participantId,
+      questionEndsAt: 200,
+      selectedAnswer: 2 as const,
+    };
+    const deps = makeDeps(state, {}, currentQuestion);
+    const event = makeEvent({
+      type: 'select_answer',
+      actor: { id: participantId, role: 'contestant' },
+      option: 1,
+    });
+
+    await expect(runSessionEvent(deps, { sessionId, event })).resolves.toEqual({
+      ok: false,
+      reason: 'unknown',
+    });
+    expect(deps.loadQuestionAt).not.toHaveBeenCalled();
+    expect(deps.commit).not.toHaveBeenCalled();
+  });
+
+  it('loads the next position question once when next succeeds', async () => {
+    const state = {
+      ...createInitialState(),
+      status: 'revealed' as const,
+      position: 1,
+      contestantId: participantId,
+      lastResult: 'correct' as const,
+    };
+    const deps = makeDeps(state);
+    const event = makeEvent({ type: 'next', actor: { id: hostId, role: 'host' } });
+
+    await expect(runSessionEvent(deps, { sessionId, event })).resolves.toMatchObject({
+      ok: true,
+    });
+
+    expect(deps.loadQuestionAt).toHaveBeenCalledTimes(1);
+    expect(deps.loadQuestionAt).toHaveBeenCalledWith(sessionId, 2);
   });
 
   it.each([
