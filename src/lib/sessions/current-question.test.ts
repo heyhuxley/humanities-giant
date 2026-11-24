@@ -15,12 +15,40 @@ describe('buildCurrentQuestion', () => {
     },
   );
 
-  it.each(['waiting', 'finished'] as const)(
-    'returns null for %s even when a question is passed',
-    (status) => {
-      expect(buildCurrentQuestion(status, question)).toBeNull();
-    },
-  );
+  it('returns null for waiting even when a question is passed', () => {
+    expect(buildCurrentQuestion('waiting', question)).toBeNull();
+  });
+
+  it('returns a copied question with only safe fields when finished', () => {
+    const input = {
+      ...question,
+      options: [...question.options],
+      correct_index: 2,
+      correctIndex: 2,
+      answer: 'C',
+    };
+
+    const result = buildCurrentQuestion('finished', input);
+
+    expect(result).toEqual(question);
+    expect(result).not.toBe(input);
+    expect(result?.options).not.toBe(input.options);
+    expect(Object.keys(result ?? {}).sort()).toEqual(['id', 'options', 'text']);
+    expect(result).not.toHaveProperty('correct_index');
+    expect(result).not.toHaveProperty('correctIndex');
+    expect(result).not.toHaveProperty('answer');
+  });
+
+  it.each([null, undefined])('returns null for finished with no question (%s)', (emptyQuestion) => {
+    expect(() => buildCurrentQuestion('finished', emptyQuestion)).not.toThrow();
+    expect(buildCurrentQuestion('finished', emptyQuestion)).toBeNull();
+  });
+
+  it('throws for a malformed question when finished', () => {
+    expect(() =>
+      buildCurrentQuestion('finished', { ...question, options: ['A', 'B', 'C'] }),
+    ).toThrow('The question is malformed.');
+  });
 
   it.each(['question_active', 'locked', 'revealed'] as const)(
     'throws when the question is missing for %s',

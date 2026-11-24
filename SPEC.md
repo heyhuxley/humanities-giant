@@ -304,7 +304,7 @@ Replacing the contestant after `waiting`. If the contestant leaves, the host end
 On PJ003 the server reloads and tries again once. The engine decides again on the fresh state, so an event that is no longer valid is rejected normally. A second conflict returns a "try again" error.
 
 ### 16.5 current_question
-Set to `{ id, text, options }` of the question at the current position when the status becomes `question_active`. Never contains the correct answer. Cleared when the session is `waiting` or `finished`.
+Set to `{ id, text, options }` of the question at the current position when the status becomes `question_active`. Never contains the correct answer. It stays set through `locked`, `revealed` and `finished`, so the reveal screen can show the question. At `finished` it keeps the last stored question, or is null if the session ended before any question was shown. It is cleared only in `waiting`.
 
 ### 16.6 Live updates
 - Clients subscribe to the `sessions` row for their session and to `participants` for their session, with Postgres Changes. RLS limits what each client receives.

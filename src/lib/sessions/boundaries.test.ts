@@ -34,6 +34,24 @@ describe('session creation import boundaries', () => {
     }
   });
 
+  it('keeps the session event runner in server session and action files', () => {
+    const files = sourceFiles(join(process.cwd(), 'src'));
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+      const normalizedPath = file.replaceAll('\\', '/');
+      const clientFile = /^\s*(['"])use client\1/m.test(source);
+      const runSessionEventImport =
+        /(?:from\s+|import\s*\(|require\s*\()\s*['"][^'"]*run-session-event['"]/m.test(source);
+
+      if (runSessionEventImport) {
+        expect(normalizedPath).toMatch(
+          /\/src\/(?:lib\/sessions\/[^/]+|app\/(?:.*\/)?actions\.ts)$/,
+        );
+      }
+      if (clientFile) expect(runSessionEventImport, file).toBe(false);
+    }
+  });
+
   it('keeps player routes away from private session and answer tables', () => {
     const appRoot = join(process.cwd(), 'src', 'app');
     const playerFiles = [

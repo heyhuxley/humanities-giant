@@ -8,12 +8,13 @@ type SessionStatus = 'waiting' | 'question_active' | 'locked' | 'revealed' | 'fi
 
 export function buildCurrentQuestion(
   status: SessionStatus,
-  question: Record<string, unknown> | null,
+  question: Record<string, unknown> | null | undefined,
 ): CurrentQuestion | null {
-  if (status === 'waiting' || status === 'finished') return null;
+  if (status === 'waiting') return null;
+  if (status === 'finished' && question == null) return null;
 
-  // Keep the question visible while locked and revealed so the reveal screen can show it.
-  if (question === null || Array.isArray(question)) {
+  // Keep it visible when finished so the reveal can still be shown after a game-ending answer.
+  if (question == null || Array.isArray(question)) {
     throw new Error('A question is required for this session status.');
   }
 
