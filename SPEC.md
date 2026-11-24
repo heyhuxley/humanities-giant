@@ -385,3 +385,11 @@ shown. It is cleared only in `waiting`.
 - Bursts of events are collapsed into one refresh (about 300 ms trailing).
 - If the channel is not live (error, timeout or closed), the page shows a "Reconnecting" notice and refreshes every 5
   seconds until live again. It also refreshes when the tab becomes visible and when the browser comes back online.
+
+## 17. Question lock
+
+- A question is locked while any session that contains it has status `question_active`, `locked` or `revealed`.
+- A locked question cannot be updated or deleted, and neither can its `question_answers` row. This is enforced by database triggers, for every role including the service role.
+- Questions in sessions that are `waiting` or `finished` may be edited. Deleting a question that appears in any session, finished or not, stays blocked by the foreign key.
+- The trigger raises error code `PJ006`. The app shows: "This question is in a live session and can't be changed until the session finishes."
+- A session in a live status stays live until its status becomes `finished`. Ending a session is done with the engine's `end_session` event.
