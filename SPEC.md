@@ -420,4 +420,11 @@ shown. It is cleared only in `waiting`.
 ### 18.5 Reveal
 - The host sends a reveal request with no answer in it. The server runner reads the correct index for the current position only after confirming ownership and that the session is `locked`.
 - The answer is stored in the engine state and the public state only from the `revealed` or `finished` status.
-- Code that reads `question_answers` is limited to one server-only file plus the host question bank.
+- Code that reads `question_answers` is limited to one server-only file plus the host question bank.\
+
+### 18.6 Player actions
+- The caller's identity comes from the verified server-side claims, never from form fields. Form fields carry only the session id and, for answers and votes, an option 0 to 3.
+- Submit answer: the server finds the caller's participant row for that session and uses its id as the contestant actor. It runs `select_answer` then `lock_in`. If `lock_in` fails after `select_answer` succeeded, the failure is shown and the contestant may submit again.
+- Vote: the verified user id and the option go to the vote function. Only audience participants can vote.
+- Timer knock: allowed for any caller who can read the session through their own access rules (a participant or the host). The server sends `timer_expired` with the system actor. An early or repeated knock is a harmless no-op, not an error.
+- Timer knocks and votes are not rate limited in v1 (see the v2 list).
