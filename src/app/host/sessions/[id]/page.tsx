@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireHost } from '@/lib/auth/require-host';
 import { createClient } from '@/lib/supabase/server';
+import { LiveSessionRefresh } from '../../../../components/live-session-refresh';
 import { SetContestantForm, StartSessionForm } from './session-controls';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
@@ -101,7 +102,8 @@ export default async function HostSessionPage({ params }: Readonly<{ params: Pro
     .from('participants')
     .select('id, display_name, role')
     .eq('session_id', id)
-    .order('display_name');
+    .order('display_name')
+    .order('id');
   if (participantError) throw new Error('Unable to load this session.');
   const rawParticipants: unknown = participantData;
   if (!Array.isArray(rawParticipants) || !rawParticipants.every(isParticipant)) {
@@ -118,6 +120,7 @@ export default async function HostSessionPage({ params }: Readonly<{ params: Pro
         <h1 className="text-2xl font-bold">Session created</h1>
         <p className="text-sm text-gray-600">Join code</p>
         <p className="text-5xl font-bold tracking-widest" aria-label={`Join code ${session.code}`}>{session.code}</p>
+        <LiveSessionRefresh sessionId={session.id} />
       </header>
       <p>Status: <span className="font-medium">{status}</span></p>
       <section className="space-y-3">
@@ -131,7 +134,7 @@ export default async function HostSessionPage({ params }: Readonly<{ params: Pro
         </ol>
       </section>
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Players</h2>
+        <h2 className="text-lg font-semibold">{participants.length} players</h2>
         <ul className="space-y-2">
           {participants.map((participant) => (
             <li key={participant.id} className="flex flex-wrap items-center justify-between gap-3 rounded border p-3">
@@ -146,7 +149,6 @@ export default async function HostSessionPage({ params }: Readonly<{ params: Pro
           ))}
           {participants.length === 0 ? <li className="text-gray-600">No players have joined yet.</li> : null}
         </ul>
-        <p className="text-sm text-gray-600">Reload the page to see new players.</p>
         {status === 'waiting' ? (
           <StartSessionForm sessionId={session.id} hasContestant={hasContestant} />
         ) : (

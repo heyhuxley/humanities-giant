@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { readCurrentQuestion, readPublicState } from '../../../lib/sessions/read-public-state';
 import { createClient } from '../../../lib/supabase/server';
-import { LiveSessionRefresh } from './live-session-refresh';
+import { LiveSessionRefresh } from '../../../components/live-session-refresh';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 

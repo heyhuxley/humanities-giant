@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createLiveSync, type LiveConnectionState } from '../../../lib/sessions/live-session-sync';
-import { createClient } from '../../../lib/supabase/client';
+import { createLiveSync, type LiveConnectionState } from '../lib/sessions/live-session-sync';
+import { createClient } from '../lib/supabase/client';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 

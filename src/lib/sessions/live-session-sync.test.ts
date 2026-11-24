@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLiveSync, type LiveConnectionState } from './live-session-sync';
 
-function makeSync() {
+function makeSync(options: { heartbeatMs?: number } = {}) {
   let handlers: {
     onChange(): void;
     onStatus(status: 'subscribed' | 'error' | 'closed'): void;
@@ -23,7 +23,7 @@ function makeSync() {
       setInterval: (callback, delay) => globalThis.setInterval(callback, delay),
       clearInterval: (handle) => globalThis.clearInterval(handle),
     },
-    options: { debounceMs: 300, pollMs: 5000 },
+    options: { debounceMs: 300, pollMs: 5000, ...options },
   });
 
   return {
@@ -210,5 +210,117 @@ describe('createLiveSync', () => {
     expect(setup.refresh).toHaveBeenCalledTimes(2);
     expect(log).not.toHaveBeenCalled();
     log.mockRestore();
+  });
+
+  it('refreshes on three heartbeat ticks while live', () => {
+    const setup = makeSync();
+    setup.sync.start();
+    setup.handlers()?.onStatus('subscribed');
+    const refreshesOnSubscribe = setup.refresh.mock.calls.length;
+
+    vi.advanceTimersByTime(90000);
+
+    expect(setup.refresh).toHaveBeenCalledTimes(refreshesOnSubscribe + 3);
+  });
+
+  it('does not heartbeat before subscribing', () => {
+    const setup = makeSync();
+    setup.sync.start();
+
+    vi.advanceTimersByTime(90000);
+
+    expect(setup.refresh).not.toHaveBeenCalled();
+  });
+
+  it('stops the heartbeat on error and starts polling', () => {
+    const setup = makeSync();
+    setup.sync.start();
+    const handlers = setup.handlers();
+    handlers?.onStatus('subscribed');
+    vi.advanceTimersByTime(15000);
+
+    handlers?.onStatus('error');
+    vi.advanceTimersByTime(15000);
+
+    expect(setup.refresh).toHaveBeenCalledTimes(4);
+    expect(setup.setConnection).toHaveBeenLastCalledWith('reconnecting');
+  });
+
+  it('restarts the heartbeat after subscribing again', () => {
+    const setup = makeSync();
+    setup.sync.start();
+    const handlers = setup.handlers();
+    handlers?.onStatus('subscribed');
+    vi.advanceTimersByTime(10000);
+    handlers?.onStatus('error');
+    vi.advanceTimersByTime(5000);
+    handlers?.onStatus('subscribed');
+    const refreshesOnReconnect = setup.refresh.mock.calls.length;
+
+    vi.advanceTimersByTime(30000);
+
+    expect(setup.refresh).toHaveBeenCalledTimes(refreshesOnReconnect + 1);
+    expect(setup.setConnection).toHaveBeenLastCalledWith('live');
+  });
+
+  it('starts only one heartbeat for consecutive subscribed statuses', () => {
+    const setup = makeSync();
+    setup.sync.start();
+    const handlers = setup.handlers();
+    handlers?.onStatus('subscribed');
+    handlers?.onStatus('subscribed');
+
+    vi.advanceTimersByTime(30000);
+
+    expect(setup.refresh).toHaveBeenCalledTimes(3);
+  });
+
+  it('cancels the heartbeat on stop', () => {
+    const setup = makeSync();
+    setup.sync.start();
+    setup.handlers()?.onStatus('subscribed');
+    setup.sync.stop();
+
+    vi.advanceTimersByTime(90000);
+
+    expect(setup.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels a pending debounce when a heartbeat fires', () => {
+    const setup = makeSync();
+    setup.sync.start();
+    const handlers = setup.handlers();
+    handlers?.onStatus('subscribed');
+    vi.advanceTimersByTime(29900);
+    handlers?.onChange();
+
+    vi.advanceTimersByTime(100);
+    expect(setup.refresh).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(200);
+
+    expect(setup.refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps heartbeating when a refresh throws', () => {
+    const setup = makeSync();
+    setup.sync.start();
+    setup.handlers()?.onStatus('subscribed');
+    setup.refresh.mockImplementationOnce(() => {
+      throw new Error('private refresh failure');
+    });
+
+    vi.advanceTimersByTime(60000);
+
+    expect(setup.refresh).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([0, -1])('disables the heartbeat when heartbeatMs is %i', (heartbeatMs) => {
+    const setup = makeSync({ heartbeatMs });
+    setup.sync.start();
+    setup.handlers()?.onStatus('subscribed');
+
+    vi.advanceTimersByTime(90000);
+
+    expect(setup.refresh).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,7 +1,12 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { checkBoundaries } from '../../test-utils/import-boundaries';
+import {
+  checkBoundaries,
+  extractImports,
+  isClientFile,
+  resolveSpecifier,
+} from '../../test-utils/import-boundaries';
 
 type SourceFile = { path: string; source: string };
 
@@ -26,6 +31,32 @@ describe('session import boundaries', () => {
     expect(paths.has('src/app/host/sessions/[id]/page.tsx')).toBe(true);
     expect(paths.has('src/app/host/sessions/[id]/actions.ts')).toBe(true);
     expect(checkBoundaries(files)).toEqual([]);
+  });
+
+  it('keeps the live refresh component client safe', () => {
+    const component = files.find((file) =>
+      file.path === 'src/components/live-session-refresh.tsx',
+    );
+    expect(component).toBeDefined();
+    if (!component) throw new Error('Expected the live refresh component in the source scan.');
+
+    expect(isClientFile(component.source)).toBe(true);
+    const imports = extractImports(component.source).map((specifier) =>
+      resolveSpecifier(specifier, component.path),
+    );
+    for (const importedPath of imports) {
+      expect(importedPath).not.toBe('src/lib/supabase/admin');
+      expect(importedPath).not.toBe('src/lib/sessions/session-event-deps');
+      expect(importedPath).not.toBe('src/lib/sessions/run-session-event');
+      expect(importedPath).not.toBe('src/lib/sessions/create-session');
+      expect(importedPath).not.toBe('src/lib/sessions/join-session');
+      expect(importedPath).not.toMatch(/^src\/lib\/auth(?:\/|$)/);
+    }
+
+    const source = component.source.toLowerCase();
+    expect(source).not.toContain('session_private');
+    expect(source).not.toContain('question_answers');
+    expect(source).not.toContain('correct_index');
   });
 
   it('keeps private tables and answer fields out of host session pages', () => {
