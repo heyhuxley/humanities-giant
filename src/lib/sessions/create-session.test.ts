@@ -61,6 +61,92 @@ describe('createSessionWithRetry', () => {
     expect(deps.callCreateSession).toHaveBeenCalledTimes(1);
   });
 
+  it('does not log database details, ids, or the generated code for an unmapped error', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const deps = dependencies(vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: '42501',
+        message: 'private database details',
+        details: 'private database details',
+        hint: 'private database details',
+      },
+    }), ['Q7R8S9']);
+
+    try {
+      await expect(createSessionWithRetry(deps, input)).resolves.toEqual({
+        ok: false,
+        reason: 'unknown',
+      });
+      const output = JSON.stringify(log.mock.calls);
+      for (const value of ['private database details', input.hostId, ...questionIds, 'Q7R8S9']) {
+        expect(output).not.toContain(value);
+      }
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it('does not log a thrown dependency error, ids, or the generated code', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const deps = dependencies(
+      vi.fn().mockRejectedValue(new Error('private database details')),
+      ['T1U2V3'],
+    );
+
+    try {
+      await expect(createSessionWithRetry(deps, input)).resolves.toEqual({
+        ok: false,
+        reason: 'unknown',
+      });
+      const output = JSON.stringify(log.mock.calls);
+      for (const value of ['private database details', input.hostId, ...questionIds, 'T1U2V3']) {
+        expect(output).not.toContain(value);
+      }
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it('does not log generated codes or private details after five code collisions', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const codes = ['A1B2C3', 'D4E5F6', 'G7H8J9', 'K1L2M3', 'N4P5Q6'];
+    const deps = dependencies(
+      vi.fn().mockResolvedValue({
+        data: null,
+        error: {
+          code: '23505',
+          message: 'private database details',
+          details: 'private database details',
+          hint: 'private database details',
+        },
+      }),
+      codes,
+    );
+
+    try {
+      await expect(createSessionWithRetry(deps, input)).resolves.toEqual({
+        ok: false,
+        reason: 'code_exhausted',
+      });
+      const output = JSON.stringify(log.mock.calls);
+      for (const value of [
+        'private database details',
+        input.hostId,
+        ...questionIds,
+        'A1B2C3',
+        'D4E5F6',
+        'G7H8J9',
+        'K1L2M3',
+        'N4P5Q6',
+      ]) {
+        expect(output).not.toContain(value);
+      }
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   it.each([
     'question ids are required',
     'exactly 15 question ids are required',

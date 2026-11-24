@@ -48,8 +48,8 @@ export async function createSessionWithRetry(
     let response: Awaited<ReturnType<CreateSessionDependencies['callCreateSession']>>;
     try {
       response = await deps.callCreateSession({ ...baseArgs, p_code: deps.generateCode() });
-    } catch (caughtValue) {
-      console.error('[create_session debug] callCreateSession threw:', caughtValue);
+    } catch {
+      console.error('[create_session] callCreateSession failed');
       return { ok: false, reason: 'unknown' };
     }
 
@@ -59,10 +59,6 @@ export async function createSessionWithRetry(
     }
 
     if (response.error.code === '23505') {
-      console.error('[create_session debug] unique code collision:', {
-        attempt: attempt + 1,
-        message: response.error.message,
-      });
       if (attempt === 4) return { ok: false, reason: 'code_exhausted' };
       continue;
     }
@@ -70,13 +66,11 @@ export async function createSessionWithRetry(
     if (response.error.message && OWNERSHIP_ERRORS.has(response.error.message.trim().toLowerCase())) {
       return { ok: false, reason: 'ownership' };
     }
-    console.error('[create_session debug] database error was not mapped:', {
-      attempt: attempt + 1,
-      code: response.error.code,
-      message: response.error.message,
-      details: response.error.details,
-      hint: response.error.hint,
-    });
+    if (response.error.code) {
+      console.error('[create_session] unmapped database error', response.error.code);
+    } else {
+      console.error('[create_session] unmapped database error');
+    }
     return { ok: false, reason: 'unknown' };
   }
 
@@ -90,7 +84,7 @@ export async function createSession(hostId: string, questionIds: string[]): Prom
     async callCreateSession(args) {
       const { data, error } = await admin.rpc('create_session', args);
       if (typeof data !== 'string' || data.length === 0) {
-        console.error('[create_session debug] raw RPC data was empty or non-string:', data);
+        console.error('[create_session] RPC returned no session id');
       }
       return {
         data: typeof data === 'string' ? data : null,

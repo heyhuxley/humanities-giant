@@ -88,21 +88,22 @@ async function expectFinishedQuestionCommit(
   expect(deps.loadQuestionAt).not.toHaveBeenCalled();
 }
 
-let loggedOutput: string[];
+let loggedOutput: unknown[][];
 let consoleError: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   loggedOutput = [];
   consoleError = vi.spyOn(console, 'error').mockImplementation((...values: unknown[]) => {
-    loggedOutput.push(values.join(' '));
+    loggedOutput.push(values);
   });
 });
 
 afterEach(() => {
-  expect(loggedOutput.join(' ')).not.toContain(sessionId);
-  expect(loggedOutput.join(' ')).not.toContain(hostId);
-  expect(loggedOutput.join(' ')).not.toContain(participantId);
-  expect(loggedOutput.join(' ')).not.toContain(questionText);
+  const output = JSON.stringify(loggedOutput);
+  expect(output).not.toContain(sessionId);
+  expect(output).not.toContain(hostId);
+  expect(output).not.toContain(participantId);
+  expect(output).not.toContain(questionText);
   consoleError.mockRestore();
 });
 
@@ -504,19 +505,118 @@ describe('runSessionEvent', () => {
     });
   });
 
-  it.each([null, 'invalid', { status: 4 }])(
-    'returns unknown for invalid stored engine state',
-    async (engineState) => {
-      const deps = makeDeps(engineState);
-      const event = makeEvent({ type: 'start', actor: { id: hostId, role: 'host' } });
-
-      await expect(runSessionEvent(deps, { sessionId, event })).resolves.toEqual({
-        ok: false,
-        reason: 'unknown',
+  it('does not log sensitive values for event failure scenarios', async () => {
+    const privateSessionId = 'session-log-secret-827';
+    const privateHostId = 'host-log-secret-193';
+    const privateParticipantId = 'participant-log-secret-546';
+    const privateQuestionText = 'distinctive private question text';
+    const thrownMessage = `${privateSessionId} private dependency failure`;
+    const privateQuestion = {
+      id: 'question-log-secret-381',
+      text: privateQuestionText,
+      options: ['A', 'B', 'C', 'D'],
+    };
+    const sensitiveValues = [
+      privateSessionId,
+      privateHostId,
+      privateParticipantId,
+      privateQuestionText,
+      thrownMessage,
+    ];
+    const assertLogsRedacted = (): void => {
+      const output = JSON.stringify(loggedOutput);
+      for (const value of sensitiveValues) {
+        expect(output).not.toContain(value);
+      }
+    };
+    const privateEvent = makeEvent({
+      type: 'set_contestant',
+      actor: { id: privateHostId, role: 'host' },
+      participantId: privateParticipantId,
+    });
+    const privateStartEvent = makeEvent({
+      type: 'start',
+      actor: { id: privateHostId, role: 'host' },
+    });
+    const privateState = { ...createInitialState(), contestantId: privateParticipantId };
+    const privateDeps = (
+      overrides: Partial<RunSessionEventDeps> = {},
+      engineState: unknown = createInitialState(),
+    ): RunSessionEventDeps =>
+      makeDeps(engineState, {
+        loadSession: vi.fn(async () => ({
+          hostId: privateHostId,
+          engineState: structuredClone(engineState),
+          version: 7,
+          currentQuestion: privateQuestion,
+        })),
+        ...overrides,
       });
-      expect(deps.commit).not.toHaveBeenCalled();
-    },
-  );
+
+    await expect(runSessionEvent(
+      privateDeps({
+        commit: vi.fn(async () => ({ data: null, error: { code: 'XX901' } })),
+      }),
+      { sessionId: privateSessionId, event: privateEvent },
+    )).resolves.toMatchObject({ ok: false, reason: 'unknown' });
+    assertLogsRedacted();
+
+    await expect(runSessionEvent(
+      privateDeps({
+        commit: vi.fn(async () => ({ data: null, error: { code: 'PJ005' } })),
+      }),
+      { sessionId: privateSessionId, event: privateEvent },
+    )).resolves.toMatchObject({ ok: false, reason: 'unsafe_state' });
+    assertLogsRedacted();
+
+    await expect(runSessionEvent(
+      privateDeps({
+        commit: vi.fn(async () => {
+          throw new Error(thrownMessage);
+        }),
+      }),
+      { sessionId: privateSessionId, event: privateEvent },
+    )).resolves.toMatchObject({ ok: false, reason: 'unknown' });
+    assertLogsRedacted();
+
+    await expect(runSessionEvent(
+      privateDeps({}, null),
+      { sessionId: privateSessionId, event: privateEvent },
+    )).resolves.toMatchObject({ ok: false, reason: 'unknown' });
+    assertLogsRedacted();
+
+    await expect(runSessionEvent(
+      privateDeps({
+        commit: vi.fn(async () => ({ data: null, error: null })),
+      }),
+      { sessionId: privateSessionId, event: privateEvent },
+    )).resolves.toMatchObject({ ok: false, reason: 'unknown' });
+    assertLogsRedacted();
+
+    await expect(runSessionEvent(
+      privateDeps(
+        { loadQuestionAt: vi.fn(async () => null) },
+        privateState,
+      ),
+      { sessionId: privateSessionId, event: privateStartEvent },
+    )).resolves.toMatchObject({ ok: false, reason: 'unknown' });
+    assertLogsRedacted();
+  });
+
+  it.each([
+    ['null state', null],
+    ['string state', 'invalid'],
+    ['non-string status', { status: 4 }],
+  ])('returns unknown for invalid stored engine state (%s)', async (_label, engineState) => {
+    const deps = makeDeps(engineState);
+    const event = makeEvent({ type: 'start', actor: { id: hostId, role: 'host' } });
+
+    await expect(runSessionEvent(deps, { sessionId, event })).resolves.toEqual({
+      ok: false,
+      reason: 'unknown',
+    });
+    expect(deps.commit).not.toHaveBeenCalled();
+  });
 
   it('returns unknown when the current question is missing at start', async () => {
     const state = { ...createInitialState(), contestantId: participantId };
