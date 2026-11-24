@@ -393,3 +393,31 @@ shown. It is cleared only in `waiting`.
 - Questions in sessions that are `waiting` or `finished` may be edited. Deleting a question that appears in any session, finished or not, stays blocked by the foreign key.
 - The trigger raises error code `PJ006`. The app shows: "This question is in a live session and can't be changed until the session finishes."
 - A session in a live status stays live until its status becomes `finished`. Ending a session is done with the engine's `end_session` event.
+
+## 18. Answering, voting and the timer
+
+### 18.1 Who may do what
+- Contestant: submit a final answer (select then lock in, run together), use lifelines.
+- Audience (participants with role audience): vote. The contestant and the host cannot vote.
+- Host: reveal, next, end session.
+- Anyone who can read the session (a participant or its host) may send the timer knock.
+
+### 18.2 Contestant answers
+- The tentative choice lives only in the contestant's browser. The server receives one submit action that runs `select_answer` then `lock_in`.
+- Neither the engine state nor the public state carries a pick before it is locked, except for the instant between the two commits.
+- The locked answer is visible to everyone before the reveal.
+
+### 18.3 Timer
+- `timer_expired` is sent by the server on behalf of a "system" actor when any client or the host page knocks. The engine accepts it only when `now >= questionEndsAt`.
+- Clients start knocking when their server-adjusted countdown reaches zero, and the host page repeats the knock every 2 seconds while the status is `question_active` and the deadline has passed.
+- Each page render includes the server's current time so clients can correct for clock differences. The server deadline is the only authority.
+
+### 18.4 Votes
+- Stored in `votes` (session, position, participant, option). One row per participant per question; a later vote replaces the earlier one.
+- A vote is accepted only when the session is `question_active`, the deadline has not passed, the voter is an audience participant of that session, and the option is 0 to 3.
+- Votes are never readable by clients. They are counted by the server only for the "ask the audience" lifeline.
+
+### 18.5 Reveal
+- The host sends a reveal request with no answer in it. The server runner reads the correct index for the current position only after confirming ownership and that the session is `locked`.
+- The answer is stored in the engine state and the public state only from the `revealed` or `finished` status.
+- Code that reads `question_answers` is limited to one server-only file plus the host question bank.
