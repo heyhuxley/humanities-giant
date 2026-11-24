@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
 import { requireHost } from '@/lib/auth/require-host';
 import { createClient } from '@/lib/supabase/server';
+import { readCurrentQuestion, readPublicState } from '@/lib/sessions/read-public-state';
 import { LiveSessionRefresh } from '../../../../components/live-session-refresh';
-import { SetContestantForm, StartSessionForm } from './session-controls';
+import { EndSessionControl, SetContestantForm, StartSessionForm } from './session-controls';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
@@ -23,11 +24,6 @@ type Participant = {
   id: string;
   display_name: string;
   role: 'contestant' | 'audience';
-};
-
-type DisplayQuestion = {
-  text: string;
-  options: [string, string, string, string];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -53,27 +49,6 @@ function isParticipant(value: unknown): value is Participant {
     && typeof value.id === 'string'
     && typeof value.display_name === 'string'
     && (value.role === 'contestant' || value.role === 'audience');
-}
-
-function displayQuestion(value: unknown): DisplayQuestion | null {
-  if (!isRecord(value) || typeof value.text !== 'string' || !Array.isArray(value.options)) {
-    return null;
-  }
-  const { options } = value;
-  if (
-    options.length !== 4 ||
-    options.some((option) => typeof option !== 'string')
-  ) {
-    return null;
-  }
-  return {
-    text: value.text,
-    options: [options[0], options[1], options[2], options[3]],
-  };
-}
-
-function readStatus(publicState: unknown): string {
-  return isRecord(publicState) && typeof publicState.status === 'string' ? publicState.status : 'unknown';
 }
 
 function questionText(question: SessionQuestion['questions']): string {
@@ -111,8 +86,9 @@ export default async function HostSessionPage({ params }: Readonly<{ params: Pro
   }
   const participants: Participant[] = rawParticipants;
   const orderedQuestions = [...(session.session_questions ?? [])].sort((first, second) => first.position - second.position);
-  const status = readStatus(session.public_state);
-  const question = displayQuestion(session.current_question);
+  const safeState = readPublicState(session.public_state);
+  const status = safeState?.status ?? 'unknown';
+  const question = readCurrentQuestion(session.current_question);
   const hasContestant = participants.some((participant) => participant.role === 'contestant');
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6">
@@ -163,6 +139,24 @@ export default async function HostSessionPage({ params }: Readonly<{ params: Pro
             ) : null}
           </div>
         )}
+        {safeState?.status === 'finished' ? (
+          <section aria-label="Session result" className="space-y-2 rounded border p-4">
+            <h2 className="text-lg font-semibold">Final result</h2>
+            <p>
+              Final winnings:{' '}
+              {safeState.winnings === null
+                ? 'Unavailable'
+                : `₦${new Intl.NumberFormat('en-NG').format(safeState.winnings)}`}
+            </p>
+            <p>
+              Finish reason:{' '}
+              {safeState.finishReason === null
+                ? 'Unavailable'
+                : safeState.finishReason.replaceAll('_', ' ')}
+            </p>
+          </section>
+        ) : null}
+        {safeState?.status !== 'finished' ? <EndSessionControl sessionId={session.id} /> : null}
       </section>
     </main>
   );
