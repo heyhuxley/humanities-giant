@@ -11,16 +11,25 @@ describe('readPublicState', () => {
       status: 'waiting',
       winnings: null,
       finishReason: null,
+      position: null,
+      amountAtStake: null,
+      questionEndsAt: null,
+      contestantId: null,
+      lockedAnswer: null,
     });
   });
 
-  it('reads a valid question_active state with a question without exposing the answer index', () => {
+  it('reads a valid question_active state without exposing the answer index', () => {
     const result = readPublicState({
       status: 'question_active',
       winnings: null,
       finishReason: null,
+      position: 3,
+      questionEndsAt: 20_000,
+      contestantId: 'contestant-id',
+      lockedAnswer: null,
       correctIndex: 2,
-      answer: 'secret',
+      selectedAnswer: 1,
       ignored: 'extra',
     });
     const question = readCurrentQuestion({
@@ -34,8 +43,14 @@ describe('readPublicState', () => {
       status: 'question_active',
       winnings: null,
       finishReason: null,
+      position: 3,
+      amountAtStake: 15_000,
+      questionEndsAt: 20_000,
+      contestantId: 'contestant-id',
+      lockedAnswer: null,
     });
     expect(result).not.toHaveProperty('correctIndex');
+    expect(result).not.toHaveProperty('selectedAnswer');
     expect(question).toEqual({
       id: 'question-id',
       text: 'Question',
@@ -53,8 +68,92 @@ describe('readPublicState', () => {
       status: 'finished',
       winnings: 30000,
       finishReason: 'walked_away',
+      position: null,
+      amountAtStake: null,
+      questionEndsAt: null,
+      contestantId: null,
+      lockedAnswer: null,
     });
   });
+
+  it('reads a valid locked answer', () => {
+    expect(readPublicState({
+      status: 'locked',
+      winnings: null,
+      finishReason: null,
+      position: 5,
+      questionEndsAt: 30_000,
+      contestantId: 'contestant-id',
+      lockedAnswer: 2,
+    })).toMatchObject({
+      position: 5,
+      amountAtStake: 30_000,
+      lockedAnswer: 2,
+    });
+  });
+
+  it('returns null for malformed answering fields', () => {
+    expect(readPublicState({
+      status: 'question_active',
+      winnings: null,
+      finishReason: null,
+      position: 0,
+      questionEndsAt: 30_000,
+      contestantId: 'contestant-id',
+      lockedAnswer: 4,
+    })).toMatchObject({
+      position: null,
+      amountAtStake: null,
+      lockedAnswer: null,
+    });
+
+    expect(readPublicState({
+      status: 'question_active',
+      winnings: null,
+      finishReason: null,
+      position: 16,
+      questionEndsAt: '30s',
+      contestantId: 42,
+      lockedAnswer: null,
+    })).toMatchObject({
+      position: null,
+      amountAtStake: null,
+      questionEndsAt: null,
+      contestantId: null,
+    });
+  });
+
+  it('defaults missing question ends and contestant fields', () => {
+    expect(readPublicState({
+      status: 'question_active',
+      winnings: null,
+      finishReason: null,
+      position: 1,
+      contestantId: null,
+      lockedAnswer: null,
+    })).toMatchObject({
+      position: 1,
+      amountAtStake: 5_000,
+      questionEndsAt: null,
+      contestantId: null,
+      lockedAnswer: null,
+    });
+  });
+
+  it.each([16, '5', 0, null, undefined])(
+    'returns null position and amount for malformed position %s',
+    (position) => {
+      expect(readPublicState({
+        status: 'question_active',
+        winnings: null,
+        finishReason: null,
+        position,
+      })).toMatchObject({
+        position: null,
+        amountAtStake: null,
+      });
+    },
+  );
 
   it.each([
     ['missing status', { winnings: null, finishReason: null }],

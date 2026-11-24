@@ -187,4 +187,51 @@ describe('session import boundaries', () => {
       }
     }
   });
+
+  it('keeps countdown and answering panels client safe and free of sensitive fields', () => {
+    const paths = [
+      'src/components/countdown-timer.tsx',
+      'src/app/play/[sessionId]/contestant-panel.tsx',
+      'src/app/play/[sessionId]/audience-panel.tsx',
+    ];
+
+    for (const path of paths) {
+      const file = files.find((entry) => entry.path === path);
+      expect(file, path).toBeDefined();
+      if (!file) continue;
+
+      expect(isClientFile(file.source), path).toBe(true);
+      const source = file.source.toLowerCase();
+      expect(source, path).not.toContain('question_answers');
+      expect(source, path).not.toContain('correct_index');
+      expect(source, path).not.toContain('session_private');
+
+      for (const specifier of extractImports(file.source)) {
+        const importedPath = resolveSpecifier(specifier, file.path);
+        expect(importedPath, path).not.toBe('src/lib/supabase/admin');
+        expect(importedPath, path).not.toBe('src/lib/sessions/session-event-deps');
+        expect(importedPath, path).not.toBe('src/lib/sessions/run-session-event');
+        expect(importedPath, path).not.toBe('src/lib/sessions/answer-deps');
+        expect(importedPath, path).not.toBe('src/lib/sessions/cast-vote');
+        expect(importedPath, path).not.toMatch(/^src\/lib\/auth(?:\/|$)/);
+      }
+    }
+  });
+
+  it('keeps countdown helpers pure and outside React and Supabase', () => {
+    for (const path of [
+      'src/lib/sessions/countdown.ts',
+      'src/lib/sessions/knock-loop.ts',
+    ]) {
+      const file = files.find((entry) => entry.path === path);
+      expect(file, path).toBeDefined();
+      if (!file) continue;
+      for (const specifier of extractImports(file.source)) {
+        const importedPath = resolveSpecifier(specifier, file.path);
+        expect(importedPath, path).not.toMatch(/^react(?:\/|$)/);
+        expect(importedPath, path).not.toMatch(/^next(?:\/|$)/);
+        expect(importedPath, path).not.toMatch(/^src\/lib\/supabase(?:\/|$)/);
+      }
+    }
+  });
 });

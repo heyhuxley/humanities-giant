@@ -5,7 +5,18 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="eb1c4547-ac44-4a16-b14c-a8b61e0b8978" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/app/play/[sessionId]/audience-panel.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/app/play/[sessionId]/contestant-panel.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/components/countdown-timer.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/lib/sessions/countdown.test.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/lib/sessions/countdown.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/lib/sessions/knock-loop.test.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/lib/sessions/knock-loop.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/play/[sessionId]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/play/[sessionId]/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/sessions/boundaries.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/sessions/boundaries.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/sessions/read-public-state.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/sessions/read-public-state.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/sessions/read-public-state.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/sessions/read-public-state.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -63,61 +74,61 @@
 }</component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.0" />
-      <entry key="S2" value="1.0000000000000002" />
-      <entry key="S5" value="1.0000014836040114" />
-      <entry key="S10" value="1.0033808129167698" />
-      <entry key="S30" value="1.6512471666861552" />
-      <entry key="S60" value="3.8997685808390994" />
-      <entry key="M2" value="9.281964011048577" />
-      <entry key="M5" value="25.37643592175983" />
-      <entry key="M10" value="47.3876357989468" />
-      <entry key="M15" value="64.77365568311873" />
-      <entry key="M30" value="105.47290746925844" />
-      <entry key="H1" value="158.4805662065545" />
-      <entry key="H2" value="211.61766469590947" />
-      <entry key="H4" value="277.98132490590325" />
-      <entry key="D1" value="681.5216414420053" />
-      <entry key="W1" value="934.1894544038172" />
+      <entry key="MS100" value="1.1665690953330643" />
+      <entry key="MS500" value="2.1214002855496643" />
+      <entry key="S2" value="2.722539085290212" />
+      <entry key="S5" value="2.8833042145903063" />
+      <entry key="S10" value="2.941202495424899" />
+      <entry key="S30" value="3.5011234377345017" />
+      <entry key="S60" value="6.088188373361209" />
+      <entry key="M2" value="10.637848438981672" />
+      <entry key="M5" value="16.185308744998714" />
+      <entry key="M10" value="18.854065493149605" />
+      <entry key="M15" value="20.193364934063375" />
+      <entry key="M30" value="27.01970707372993" />
+      <entry key="H1" value="54.383418250412355" />
+      <entry key="H2" value="122.09029536677804" />
+      <entry key="H4" value="234.11900788221283" />
+      <entry key="D1" value="747.2045441942063" />
+      <entry key="W1" value="1080.7079746561096" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="0.0010911007207736521" />
-      <entry key="MS500" value="0.2556071326524806" />
-      <entry key="S2" value="0.7110387052936373" />
-      <entry key="S5" value="0.8724836493037179" />
-      <entry key="S10" value="0.934068332245408" />
-      <entry key="S30" value="0.9775227996297905" />
-      <entry key="S60" value="0.9945905561919106" />
-      <entry key="M2" value="1.3990260315835936" />
-      <entry key="M5" value="6.884243259340332" />
-      <entry key="M10" value="17.62559976893451" />
-      <entry key="M15" value="25.723256328575715" />
-      <entry key="M30" value="40.09889989723961" />
-      <entry key="H1" value="52.90468886746999" />
-      <entry key="H2" value="62.85308403765766" />
-      <entry key="H4" value="73.34037870971922" />
-      <entry key="D1" value="132.86035336629158" />
-      <entry key="W1" value="169.0675103067559" />
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="2.864402532605697E-108" />
+      <entry key="S2" value="1.3009437297778437E-27" />
+      <entry key="S5" value="1.7607731413144117E-11" />
+      <entry key="S10" value="4.196156743157257E-6" />
+      <entry key="S30" value="0.016129363672132028" />
+      <entry key="S60" value="0.1270014317719765" />
+      <entry key="M2" value="0.3563726024429718" />
+      <entry key="M5" value="0.6618534783347685" />
+      <entry key="M10" value="0.8141960807305013" />
+      <entry key="M15" value="0.8867649192323357" />
+      <entry key="M30" value="1.4831641417750074" />
+      <entry key="H1" value="5.8552725824439955" />
+      <entry key="H2" value="20.347621755057407" />
+      <entry key="H4" value="45.01790089876548" />
+      <entry key="D1" value="135.45651942384157" />
+      <entry key="W1" value="187.39102155423572" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.0010911212179440133" />
-      <entry key="MS500" value="0.28460317879220814" />
-      <entry key="S2" value="1.1236914095499662" />
-      <entry key="S5" value="1.5743182046281419" />
-      <entry key="S10" value="1.7751170374036758" />
-      <entry key="S30" value="2.5658790637464124" />
-      <entry key="S60" value="4.852687171076043" />
-      <entry key="M2" value="10.642780455093893" />
-      <entry key="M5" value="32.20903360595982" />
-      <entry key="M10" value="64.9562996186612" />
-      <entry key="M15" value="90.44253710113497" />
-      <entry key="M30" value="145.52832943199206" />
-      <entry key="H1" value="211.3550830827467" />
-      <entry key="H2" value="274.45195690820304" />
-      <entry key="H4" value="351.3100600877918" />
-      <entry key="D1" value="814.3777297936075" />
-      <entry key="W1" value="1103.2561485353522" />
+      <entry key="MS100" value="0.23737420894262018" />
+      <entry key="MS500" value="1.3754510047978066" />
+      <entry key="S2" value="2.3709644999348725" />
+      <entry key="S5" value="2.7195955340397413" />
+      <entry key="S10" value="2.854935071850324" />
+      <entry key="S30" value="3.4867258309174036" />
+      <entry key="S60" value="6.197559339373196" />
+      <entry key="M2" value="10.983168869092427" />
+      <entry key="M5" value="16.841586939602827" />
+      <entry key="M10" value="19.665185416927667" />
+      <entry key="M15" value="21.077947962022623" />
+      <entry key="M30" value="28.50096973474756" />
+      <entry key="H1" value="60.23501613031073" />
+      <entry key="H2" value="142.4316399993936" />
+      <entry key="H4" value="279.1297657349004" />
+      <entry key="D1" value="882.6568357379357" />
+      <entry key="W1" value="1268.0981152997801" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -133,27 +144,27 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ASKED_MARK_IGNORED_FILES_AS_EXCLUDED&quot;: &quot;true&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;development&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;js.debugger.nextJs.config.created.client&quot;: &quot;true&quot;,
-    &quot;js.debugger.nextJs.config.created.server&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.jshint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.jshint&quot;: &quot;&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.intellij.air.settings.ai.providers&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\HP\\Documents\\projects\\humanities-giant\\node_modules\\typescript\\lib&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_MARK_IGNORED_FILES_AS_EXCLUDED": "true",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "git-widget-placeholder": "development",
+    "javascript.preferred.runtime.type.id": "node",
+    "js.debugger.nextJs.config.created.client": "true",
+    "js.debugger.nextJs.config.created.server": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.jshint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.jshint": "",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "com.intellij.air.settings.ai.providers",
+    "ts.external.directory.path": "C:\\Users\\HP\\AppData\\Roaming\\npm\\node_modules\\typescript\\lib"
   }
-}</component>
+}]]></component>
   <component name="ReactDesignerToolWindowState">
     <option name="myId2Visible">
       <map>
@@ -210,7 +221,7 @@
       <option name="presentableId" value="Default" />
       <updated>1795427841261</updated>
       <workItem from="1795427842303" duration="33095000" />
-      <workItem from="1795519288162" duration="331000" />
+      <workItem from="1795519288162" duration="3690000" />
     </task>
     <servers />
   </component>

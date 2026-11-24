@@ -2,6 +2,11 @@ import { notFound } from 'next/navigation';
 import { readCurrentQuestion, readPublicState } from '../../../lib/sessions/read-public-state';
 import { createClient } from '../../../lib/supabase/server';
 import { LiveSessionRefresh } from '../../../components/live-session-refresh';
+import { CountdownTimer } from '../../../components/countdown-timer';
+import { ContestantPanel } from './contestant-panel';
+import { AudiencePanel } from './audience-panel';
+import { castVoteAction, submitAnswerAction } from './actions';
+import { knockAction } from '../../knock/actions';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
@@ -117,6 +122,12 @@ export default async function PlayPage({
 
   const participants = roster.filter((entry): entry is Participant => entry !== null);
   const isWaiting = publicState.status === 'waiting';
+  const showQuestionScreen =
+    (publicState.status === 'question_active' ||
+      publicState.status === 'locked') &&
+    currentQuestion !== null;
+  // eslint-disable-next-line react-hooks/purity
+  const serverNowMs = Date.now();
 
   return (
     <main className="mx-auto w-full max-w-xl space-y-6 p-6">
@@ -152,12 +163,56 @@ export default async function PlayPage({
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Status: {statusLabel(publicState.status)}</h2>
           {currentQuestion ? (
+            <CountdownTimer
+              endsAtMs={publicState.questionEndsAt}
+              serverNowMs={serverNowMs}
+              active={publicState.status === 'question_active'}
+              sessionId={sessionId}
+              knockAction={knockAction}
+            />
+          ) : null}
+          {showQuestionScreen && currentQuestion ? (
+            <>
+              {player.id === publicState.contestantId ? (
+                <ContestantPanel
+                  key={publicState.position}
+                  sessionId={sessionId}
+                  position={publicState.position}
+                  amountAtStake={publicState.amountAtStake}
+                  question={currentQuestion}
+                  lockedAnswer={publicState.lockedAnswer}
+                  open={publicState.status === 'question_active'}
+                  submitAction={submitAnswerAction}
+                />
+              ) : (
+                <AudiencePanel
+                  key={publicState.position}
+                  sessionId={sessionId}
+                  position={publicState.position}
+                  amountAtStake={publicState.amountAtStake}
+                  question={currentQuestion}
+                  lockedAnswer={publicState.lockedAnswer}
+                  open={publicState.status === 'question_active'}
+                  voteAction={castVoteAction}
+                />
+              )}
+            </>
+          ) : currentQuestion ? (
             <div className="space-y-2">
               <p>{currentQuestion.text}</p>
               <ol className="list-inside list-decimal space-y-1">
                 {currentQuestion.options.map((option, index) => <li key={index}>{option}</li>)}
               </ol>
+              {publicState.status === 'revealed' ? (
+                <p>Waiting for the host</p>
+              ) : null}
             </div>
+          ) : null}
+          {(publicState.status === 'question_active' ||
+            publicState.status === 'locked') &&
+          !showQuestionScreen &&
+          currentQuestion === null ? (
+            <p>Question unavailable</p>
           ) : null}
           {publicState.status === 'finished' ? (
             <div className="space-y-1">
@@ -169,9 +224,6 @@ export default async function PlayPage({
               ) : null}
             </div>
           ) : null}
-          <p className="rounded-lg bg-stone-100 p-4">
-            Answering comes in a later update.
-          </p>
         </section>
       )}
     </main>
