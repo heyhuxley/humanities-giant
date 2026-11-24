@@ -12,6 +12,12 @@ const MODULES = {
   sessionEventDeps: 'src/lib/sessions/session-event-deps',
   answerDeps: 'src/lib/sessions/answer-deps',
   castVote: 'src/lib/sessions/cast-vote',
+  playerForms: 'src/lib/sessions/player-forms',
+  playerFlows: 'src/lib/sessions/player-flows',
+  playerMessages: 'src/lib/sessions/player-messages',
+  verifiedUser: 'src/lib/sessions/verified-user',
+  playActions: 'src/app/play/[sessionId]/actions',
+  knockActions: 'src/app/knock/actions',
   runSessionEvent: 'src/lib/sessions/run-session-event',
   createSession: 'src/lib/sessions/create-session',
   joinSession: 'src/lib/sessions/join-session',
@@ -130,6 +136,22 @@ export function checkBoundaries(
     MODULES.createSession,
     MODULES.joinSession,
   ];
+  const playerPureModules = [
+    MODULES.playerForms,
+    MODULES.playerFlows,
+    MODULES.playerMessages,
+  ];
+  const newPlayerModules = [
+    ...playerPureModules,
+    MODULES.verifiedUser,
+    MODULES.playActions,
+    MODULES.knockActions,
+  ];
+  const restrictedPlayerText = [
+    'question' + '_answers',
+    'correct' + '_index',
+    'session' + '_private',
+  ];
 
   for (const file of files) {
     const filePath = normalizedPath(file.path);
@@ -137,6 +159,28 @@ export function checkBoundaries(
     const appFile = isUnder(filePath, 'src/app');
     const actionFile = isActionFile(filePath);
     const clientFile = isClientFile(file.source);
+    const fileWithoutExtension = filePath.replace(/\.(?:tsx?|jsx?)$/i, '');
+
+    if (playerPureModules.includes(fileWithoutExtension as typeof playerPureModules[number])) {
+      for (const restrictedText of restrictedPlayerText) {
+        if (file.source.toLowerCase().includes(restrictedText)) {
+          violations.push({
+            file: file.path,
+            rule: 'player-sensitive-source',
+            specifier: restrictedText,
+          });
+        }
+      }
+    }
+
+    if (fileWithoutExtension === MODULES.verifiedUser) {
+      for (const specifier of extractImports(file.source)) {
+        const resolved = resolveSpecifier(specifier, filePath);
+        if (specifier !== 'server-only' && resolved !== 'src/lib/supabase/server') {
+          violations.push({ file: file.path, rule: 'verified-user-importer', specifier });
+        }
+      }
+    }
 
     for (const specifier of extractImports(file.source)) {
       const resolved = resolveSpecifier(specifier, filePath);
@@ -144,6 +188,9 @@ export function checkBoundaries(
       const importsDeps = matchesModule(specifier, resolved, MODULES.sessionEventDeps);
       const importsAnswerDeps = matchesModule(specifier, resolved, MODULES.answerDeps);
       const importsCastVote = matchesModule(specifier, resolved, MODULES.castVote);
+      const importedPlayerModule = newPlayerModules.find((target) =>
+        matchesModule(specifier, resolved, target),
+      );
       const importsSessionModule = sessionModules.some((target) =>
         matchesModule(specifier, resolved, target),
       );
@@ -166,6 +213,28 @@ export function checkBoundaries(
 
       if (importsCastVote && !actionFile && !isTypeOnlyImport(file.source, specifier)) {
         violations.push({ file: file.path, rule: 'cast-vote-importer', specifier });
+      }
+
+      if (
+        clientFile &&
+        importedPlayerModule !== undefined &&
+        importedPlayerModule !== MODULES.playActions &&
+        importedPlayerModule !== MODULES.knockActions
+      ) {
+        violations.push({ file: file.path, rule: 'client-player-module-import', specifier });
+      }
+
+      if (
+        playerPureModules.includes(fileWithoutExtension as typeof playerPureModules[number]) &&
+        (
+          importsAdmin ||
+          importsCastVote ||
+          importsDeps ||
+          importsAnswerDeps
+        ) &&
+        !isTypeOnlyImport(file.source, specifier)
+      ) {
+        violations.push({ file: file.path, rule: 'player-pure-runtime-import', specifier });
       }
 
       if (

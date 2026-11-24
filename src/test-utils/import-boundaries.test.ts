@@ -90,6 +90,76 @@ describe('isClientFile', () => {
 });
 
 describe('checkBoundaries', () => {
+  it('rejects private data and forbidden runtime imports in pure player modules', () => {
+    const forbiddenText = 'session' + '_private';
+    const cases = [
+      {
+        path: 'src/lib/sessions/player-forms.ts',
+        source: `export const detail = '${forbiddenText}';`,
+        rule: 'player-sensitive-source',
+      },
+      {
+        path: 'src/lib/sessions/player-flows.ts',
+        source: `import { castVote } from '@/lib/sessions/cast-vote';`,
+        rule: 'player-pure-runtime-import',
+      },
+      {
+        path: 'src/lib/sessions/player-messages.ts',
+        source: `import '@/lib/supabase/admin';`,
+        rule: 'player-pure-runtime-import',
+      },
+      {
+        path: 'src/lib/sessions/player-flows.ts',
+        source: `import '@/lib/sessions/session-event-deps';`,
+        rule: 'player-pure-runtime-import',
+      },
+      {
+        path: 'src/lib/sessions/player-flows.ts',
+        source: `import '@/lib/sessions/answer-deps';`,
+        rule: 'player-pure-runtime-import',
+      },
+    ];
+
+    for (const testCase of cases) {
+      expectRule(violations(testCase.path, testCase.source), testCase.rule);
+    }
+  });
+
+  it('limits verified user imports to the server Supabase client', () => {
+    expect(violations(
+      'src/lib/sessions/verified-user.ts',
+      `import 'server-only';\nimport { createClient } from '../supabase/server';`,
+    )).toEqual([]);
+    expectRule(
+      violations(
+        'src/lib/sessions/verified-user.ts',
+        `import { createAdminClient } from '../supabase/admin';`,
+      ),
+      'verified-user-importer',
+    );
+  });
+
+  it('allows client references to player server actions only', () => {
+    expect(violations(
+      'src/components/player-controls.tsx',
+      `'use client';\nimport { submitAnswerAction } from '../app/play/[sessionId]/actions';`,
+    )).toEqual([]);
+    expectRule(
+      violations(
+        'src/components/player-controls.tsx',
+        `'use client';\nimport { submitAnswerFlow } from '../lib/sessions/player-flows';`,
+      ),
+      'client-player-module-import',
+    );
+    expectRule(
+      violations(
+        'src/components/player-controls.tsx',
+        `'use client';\nimport { getVerifiedUserId } from '../lib/sessions/verified-user';`,
+      ),
+      'client-player-module-import',
+    );
+  });
+
   it.each([
     [PAGE, `import { createRunSessionEventDeps } from '${DEPS}';`, 'app-module-importer'],
     [CLIENT, `'use client';\nimport '${DEPS}';`, 'client-import'],

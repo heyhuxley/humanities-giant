@@ -6,7 +6,9 @@
   <component name="ChangeListManager">
     <list default="true" id="eb1c4547-ac44-4a16-b14c-a8b61e0b8978" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/SPEC.md" beforeDir="false" afterPath="$PROJECT_DIR$/SPEC.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/sessions/boundaries.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/sessions/boundaries.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test-utils/import-boundaries.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-utils/import-boundaries.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test-utils/import-boundaries.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-utils/import-boundaries.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -64,61 +66,61 @@
 }</component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.007041019239147" />
-      <entry key="MS500" value="1.3711362036193742" />
-      <entry key="S2" value="1.9386303884050404" />
-      <entry key="S5" value="3.388771097804596" />
-      <entry key="S10" value="5.153512135228146" />
-      <entry key="S30" value="7.58673654367908" />
-      <entry key="S60" value="9.794732479774165" />
-      <entry key="M2" value="13.531750359088138" />
-      <entry key="M5" value="23.26098118629131" />
-      <entry key="M10" value="37.001644475987135" />
-      <entry key="M15" value="48.994258237402484" />
-      <entry key="M30" value="81.55183054948021" />
-      <entry key="H1" value="126.17328786575806" />
-      <entry key="H2" value="170.80141083949886" />
-      <entry key="H4" value="231.39381322862957" />
-      <entry key="D1" value="628.3930523773266" />
-      <entry key="W1" value="877.1511291587799" />
+      <entry key="MS100" value="1.010525262319263" />
+      <entry key="MS500" value="1.402204185470958" />
+      <entry key="S2" value="1.7963640497052422" />
+      <entry key="S5" value="1.9129451091910687" />
+      <entry key="S10" value="1.955805266870816" />
+      <entry key="S30" value="2.3602946046748583" />
+      <entry key="S60" value="4.673829899122445" />
+      <entry key="M2" value="10.469457167863172" />
+      <entry key="M5" value="26.478218869274432" />
+      <entry key="M10" value="47.467786153204166" />
+      <entry key="M15" value="63.940773478799244" />
+      <entry key="M30" value="103.04660891263211" />
+      <entry key="H1" value="154.3954321443249" />
+      <entry key="H2" value="205.89126516259233" />
+      <entry key="H4" value="271.13141573773953" />
+      <entry key="D1" value="673.403828966006" />
+      <entry key="W1" value="925.3623451199924" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="5.494940202566423E-82" />
-      <entry key="S2" value="4.864315025901565E-21" />
-      <entry key="S5" value="8.357358065689986E-9" />
-      <entry key="S10" value="1.1608910553256434E-4" />
-      <entry key="S30" value="0.07515844439614287" />
-      <entry key="S60" value="0.39254242842589576" />
-      <entry key="M2" value="1.2497826275178194" />
-      <entry key="M5" value="6.035957523511604" />
-      <entry key="M10" value="12.7959150643934" />
-      <entry key="M15" value="17.16637465097501" />
-      <entry key="M30" value="24.785719676341287" />
-      <entry key="H1" value="32.02018778385948" />
-      <entry key="H2" value="38.116832614071996" />
-      <entry key="H4" value="46.38677145999042" />
-      <entry key="D1" value="103.8014429736017" />
-      <entry key="W1" value="139.23991429512176" />
+      <entry key="MS500" value="4.298991223514739E-306" />
+      <entry key="S2" value="4.76604192149646E-77" />
+      <entry key="S5" value="4.760556572956857E-31" />
+      <entry key="S10" value="1.5958717296414747E-15" />
+      <entry key="S30" value="6.467287583355978E-5" />
+      <entry key="S60" value="0.03832636974038486" />
+      <entry key="M2" value="1.0319947893410484" />
+      <entry key="M5" value="8.560095568750619" />
+      <entry key="M10" value="20.0501306440361" />
+      <entry key="M15" value="28.010817539433507" />
+      <entry key="M30" value="41.617132103868826" />
+      <entry key="H1" value="53.550049748519235" />
+      <entry key="H2" value="62.8257778836532" />
+      <entry key="H4" value="72.90695964348694" />
+      <entry key="D1" value="132.03191290720355" />
+      <entry key="W1" value="168.09873081887963" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.03142800852890254" />
-      <entry key="MS500" value="0.7077944291123285" />
-      <entry key="S2" value="1.6627733477947595" />
-      <entry key="S5" value="3.223202544068301" />
-      <entry key="S10" value="5.039424440692277" />
-      <entry key="S30" value="7.608231690170994" />
-      <entry key="S60" value="10.152439272392789" />
-      <entry key="M2" value="14.753285482845927" />
-      <entry key="M5" value="29.255035637544882" />
-      <entry key="M10" value="49.75283819529755" />
-      <entry key="M15" value="66.11966922393118" />
-      <entry key="M30" value="106.30601879390433" />
-      <entry key="H1" value="158.1717481847957" />
-      <entry key="H2" value="208.90464378014045" />
-      <entry key="H4" value="277.7718288710999" />
-      <entry key="D1" value="732.1907609614279" />
-      <entry key="W1" value="1016.3903065792941" />
+      <entry key="MS100" value="0.05884567400198121" />
+      <entry key="MS500" value="0.7330833850426223" />
+      <entry key="S2" value="1.506003789671524" />
+      <entry key="S5" value="1.780429155076633" />
+      <entry key="S10" value="1.8864562694014868" />
+      <entry key="S30" value="2.335459491324378" />
+      <entry key="S60" value="4.689601280614166" />
+      <entry key="M2" value="11.463621173712886" />
+      <entry key="M5" value="34.97926291978762" />
+      <entry key="M10" value="67.45634901351923" />
+      <entry key="M15" value="91.89452801412443" />
+      <entry key="M30" value="144.61964474431213" />
+      <entry key="H1" value="207.91542296459735" />
+      <entry key="H2" value="268.69848519130556" />
+      <entry key="H4" value="344.02690410004925" />
+      <entry key="D1" value="805.4315150361243" />
+      <entry key="W1" value="1093.460265854304" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -134,26 +136,27 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;development&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;js.debugger.nextJs.config.created.client&quot;: &quot;true&quot;,
-    &quot;js.debugger.nextJs.config.created.server&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.jshint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.jshint&quot;: &quot;&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.intellij.air.settings.ai.providers&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\HP\\Documents\\projects\\humanities-giant\\node_modules\\typescript\\lib&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_MARK_IGNORED_FILES_AS_EXCLUDED": "true",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "git-widget-placeholder": "development",
+    "javascript.preferred.runtime.type.id": "node",
+    "js.debugger.nextJs.config.created.client": "true",
+    "js.debugger.nextJs.config.created.server": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.jshint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.jshint": "",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "com.intellij.air.settings.ai.providers",
+    "ts.external.directory.path": "C:\\Users\\HP\\Documents\\projects\\humanities-giant\\node_modules\\typescript\\lib"
   }
-}</component>
+}]]></component>
   <component name="ReactDesignerToolWindowState">
     <option name="myId2Visible">
       <map>

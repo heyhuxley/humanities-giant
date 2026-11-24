@@ -29,6 +29,15 @@ describe('session import boundaries', () => {
   const files = sourceFiles(join(process.cwd(), 'src'));
   const answerDataFiles = findAnswerDataFiles(files);
   const castVoteFile = files.find((file) => file.path === 'src/lib/sessions/cast-vote.ts');
+  const playerPurePaths = [
+    'src/lib/sessions/player-forms.ts',
+    'src/lib/sessions/player-flows.ts',
+    'src/lib/sessions/player-messages.ts',
+  ];
+  const playerFiles = files.filter((file) =>
+    playerPurePaths.includes(file.path) ||
+    file.path === 'src/lib/sessions/verified-user.ts',
+  );
 
   it('scans all source files and rejects every forbidden import', () => {
     const paths = new Set(files.map((file) => file.path));
@@ -152,6 +161,29 @@ describe('session import boundaries', () => {
         ) {
           expect(isActionFile(file.path), file.path).toBe(true);
         }
+      }
+    }
+  });
+
+  it('keeps player logic free of private fields and forbidden runtime dependencies', () => {
+    expect(playerFiles.map((file) => file.path).sort()).toEqual([
+      ...playerPurePaths,
+      'src/lib/sessions/verified-user.ts',
+    ].sort());
+    expect(checkBoundaries(playerFiles)).toEqual([]);
+  });
+
+  it('allows client files to import player actions, but no other new player modules', () => {
+    const playerModules = [
+      ...playerPurePaths,
+      'src/lib/sessions/verified-user',
+    ];
+    const clientFiles = files.filter((file) => isClientFile(file.source));
+    for (const file of clientFiles) {
+      const importedModules = extractImports(file.source)
+        .map((specifier) => resolveSpecifier(specifier, file.path));
+      for (const modulePath of playerModules) {
+        expect(importedModules, file.path).not.toContain(modulePath);
       }
     }
   });
