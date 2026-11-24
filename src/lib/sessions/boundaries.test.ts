@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   checkBoundaries,
   extractImports,
+  findAnswerDataFiles,
   isClientFile,
   resolveSpecifier,
 } from '../../test-utils/import-boundaries';
@@ -24,6 +25,7 @@ function sourceFiles(directory: string): SourceFile[] {
 
 describe('session import boundaries', () => {
   const files = sourceFiles(join(process.cwd(), 'src'));
+  const answerDataFiles = findAnswerDataFiles(files);
 
   it('scans all source files and rejects every forbidden import', () => {
     const paths = new Set(files.map((file) => file.path));
@@ -91,6 +93,35 @@ describe('session import boundaries', () => {
       const source = file.source.toLowerCase();
       expect(source, file.path).not.toContain('session_private');
       expect(source, file.path).not.toContain('question_answers');
+    }
+  });
+
+  it('allows answer fields in exactly the current host bank files and answer loader', () => {
+    expect(answerDataFiles).toEqual([
+      'src/app/host/questions/[id]/edit/page.tsx',
+      'src/app/host/questions/actions.ts',
+      'src/app/host/questions/page.tsx',
+      'src/lib/sessions/answer-deps.ts',
+    ]);
+
+    expect(answerDataFiles).not.toContain('src/lib/sessions/run-session-event.ts');
+    expect(answerDataFiles).not.toContain('src/lib/sessions/session-event-deps.ts');
+    for (const file of files) {
+      if (file.path.startsWith('src/app/play/') || file.path.startsWith('src/app/join/')) {
+        expect(answerDataFiles, file.path).not.toContain(file.path);
+      }
+    }
+  });
+
+  it('keeps answer dependencies out of player routes and client files', () => {
+    for (const file of files) {
+      const importsAnswerDeps = extractImports(file.source).some((specifier) =>
+        resolveSpecifier(specifier, file.path) === 'src/lib/sessions/answer-deps',
+      );
+      if (file.path.startsWith('src/app/play/') || file.path.startsWith('src/app/join/')) {
+        expect(importsAnswerDeps, file.path).toBe(false);
+      }
+      if (isClientFile(file.source)) expect(importsAnswerDeps, file.path).toBe(false);
     }
   });
 });

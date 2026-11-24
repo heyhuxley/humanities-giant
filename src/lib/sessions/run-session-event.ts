@@ -5,10 +5,14 @@ import {
   toPublicState,
   type GameEvent,
   type GameError,
+  type Option,
   type PublicSessionState,
   type SessionState,
 } from '../../game';
 import { buildCurrentQuestion, type CurrentQuestion } from './current-question';
+
+export type RevealRequest = Omit<Extract<GameEvent, { type: 'reveal' }>, 'correctIndex'>;
+export type RunnableEvent = Exclude<GameEvent, { type: 'reveal' }> | RevealRequest;
 
 export type RunSessionEventDeps = {
   loadSession(sessionId: string): Promise<{
@@ -18,6 +22,7 @@ export type RunSessionEventDeps = {
     currentQuestion: unknown;
   } | null>;
   loadQuestionAt(sessionId: string, position: number): Promise<unknown | null>;
+  loadCorrectIndex(sessionId: string, position: number): Promise<Option | null>;
   commit(args: {
     p_session_id: string;
     p_expected_version: number;
@@ -51,7 +56,7 @@ function questionRecord(value: unknown): Record<string, unknown> | null {
 
 export async function runSessionEvent(
   deps: RunSessionEventDeps,
-  input: { sessionId: string; event: GameEvent },
+  input: { sessionId: string; event: RunnableEvent },
 ): Promise<RunSessionEventResult> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -67,11 +72,23 @@ export async function runSessionEvent(
         return { ok: false, reason: 'unknown' };
       }
 
-      const transition = applyEvent(
-        session.engineState as SessionState,
-        input.event,
-        deps.now(),
-      );
+      const state = session.engineState as SessionState;
+      let event: GameEvent;
+      if (input.event.type === 'reveal') {
+        if (state.status !== 'locked') {
+          return { ok: false, reason: 'rejected', error: 'wrong_state' };
+        }
+        const correctIndex = await deps.loadCorrectIndex(
+          input.sessionId,
+          state.position,
+        );
+        if (correctIndex === null) return { ok: false, reason: 'unknown' };
+        event = { type: 'reveal', actor: input.event.actor, correctIndex };
+      } else {
+        event = input.event;
+      }
+
+      const transition = applyEvent(state, event, deps.now());
       if (!transition.ok) {
         return { ok: false, reason: 'rejected', error: transition.error };
       }

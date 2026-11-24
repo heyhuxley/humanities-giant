@@ -10,6 +10,7 @@ const REQUIRE_PATTERN = /\brequire\s*\(\s*(['"])([^'"]+)\1\s*\)/g;
 const MODULES = {
   admin: 'src/lib/supabase/admin',
   sessionEventDeps: 'src/lib/sessions/session-event-deps',
+  answerDeps: 'src/lib/sessions/answer-deps',
   runSessionEvent: 'src/lib/sessions/run-session-event',
   createSession: 'src/lib/sessions/create-session',
   joinSession: 'src/lib/sessions/join-session',
@@ -99,6 +100,18 @@ export function isClientFile(source: string): boolean {
   return /^(?:'use client'|"use client")(?:\s*;)?(?:\s|$)/.test(remaining);
 }
 
+export function findAnswerDataFiles(
+  files: { path: string; source: string }[],
+): string[] {
+  const answerTable = 'question' + '_answers';
+  const answerColumn = 'correct' + '_index';
+  return files
+    .filter((file) => !isTestFile(file.path) && /\.(?:ts|tsx)$/i.test(file.path))
+    .filter((file) => file.source.includes(answerTable) || file.source.includes(answerColumn))
+    .map((file) => normalizedPath(file.path))
+    .sort();
+}
+
 export function checkBoundaries(
   files: { path: string; source: string }[],
 ): { file: string; rule: string; specifier: string }[] {
@@ -108,6 +121,7 @@ export function checkBoundaries(
     'src/lib/sessions/create-session',
     'src/lib/sessions/join-session',
     MODULES.sessionEventDeps,
+    MODULES.answerDeps,
   ]);
   const sessionModules = [
     MODULES.runSessionEvent,
@@ -126,6 +140,7 @@ export function checkBoundaries(
       const resolved = resolveSpecifier(specifier, filePath);
       const importsAdmin = matchesModule(specifier, resolved, MODULES.admin);
       const importsDeps = matchesModule(specifier, resolved, MODULES.sessionEventDeps);
+      const importsAnswerDeps = matchesModule(specifier, resolved, MODULES.answerDeps);
       const importsSessionModule = sessionModules.some((target) =>
         matchesModule(specifier, resolved, target),
       );
@@ -140,6 +155,13 @@ export function checkBoundaries(
       }
 
       if (
+        importsAnswerDeps &&
+        filePath.replace(/\.(?:tsx?|jsx?)$/i, '') !== MODULES.sessionEventDeps
+      ) {
+        violations.push({ file: file.path, rule: 'answer-deps-importer', specifier });
+      }
+
+      if (
         importsSessionModule &&
         !isUnder(filePath, 'src/lib/sessions') &&
         !actionFile
@@ -147,11 +169,13 @@ export function checkBoundaries(
         violations.push({ file: file.path, rule: 'session-module-importer', specifier });
       }
 
-      if (clientFile && (importsAdmin || importsDeps || importsSessionModule || importsRequireHost)) {
+      if (clientFile && (
+        importsAdmin || importsDeps || importsAnswerDeps || importsSessionModule || importsRequireHost
+      )) {
         violations.push({ file: file.path, rule: 'client-import', specifier });
       }
 
-      if (appFile && !actionFile && (importsDeps || importsSessionModule)) {
+      if (appFile && !actionFile && (importsDeps || importsAnswerDeps || importsSessionModule)) {
         violations.push({ file: file.path, rule: 'app-module-importer', specifier });
       }
     }

@@ -3,10 +3,13 @@ import {
   createInitialState,
   QUESTION_DURATION_MS,
   toPublicState,
-  type GameEvent,
   type SessionState,
 } from '../../game';
-import { runSessionEvent, type RunSessionEventDeps } from './run-session-event';
+import {
+  runSessionEvent,
+  type RunnableEvent,
+  type RunSessionEventDeps,
+} from './run-session-event';
 
 vi.mock('server-only', () => ({}));
 
@@ -30,7 +33,7 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-function makeEvent<T extends GameEvent>(event: T): T {
+function makeEvent<T extends RunnableEvent>(event: T): T {
   return deepFreeze(event);
 }
 
@@ -47,6 +50,7 @@ function makeDeps(
       currentQuestion,
     })),
     loadQuestionAt: vi.fn(async () => question),
+    loadCorrectIndex: vi.fn(async () => 0 as const),
     commit: vi.fn(async () => ({ data: 8, error: null })),
     now: vi.fn(() => 100),
     ...overrides,
@@ -55,7 +59,7 @@ function makeDeps(
 
 async function expectFinishedQuestionCommit(
   state: SessionState,
-  event: GameEvent,
+  event: RunnableEvent,
   correctIndex: number | null,
 ): Promise<void> {
   const loadedQuestion = {
@@ -108,6 +112,343 @@ afterEach(() => {
 });
 
 describe('runSessionEvent', () => {
+  it.each([
+    [2, 'correct', 'revealed'],
+    [1, 'wrong', 'finished'],
+  ] as const)(
+    'loads and commits the server answer for a %s reveal',
+    async (correctIndex, lastResult, status) => {
+      const state: SessionState = {
+        ...createInitialState(),
+        status: 'locked',
+        position: 4,
+        contestantId: participantId,
+        lockedAnswer: 2,
+      };
+      const loadCorrectIndex = vi.fn(async () => correctIndex);
+      const deps = makeDeps(state, { loadCorrectIndex });
+      const event = makeEvent({ type: 'reveal', actor: { id: hostId, role: 'host' } });
+
+      await expect(runSessionEvent(deps, { sessionId, event })).resolves.toEqual({
+        ok: true,
+        version: 8,
+      });
+
+      expect(loadCorrectIndex).toHaveBeenCalledOnce();
+      expect(loadCorrectIndex).toHaveBeenCalledWith(sessionId, 4);
+      const committed = vi.mocked(deps.commit).mock.calls[0][0];
+      expect(committed.p_engine_state).toMatchObject({
+        correctIndex,
+        lastResult,
+        status,
+      });
+      expect(committed.p_public_state).toMatchObject({ correctIndex });
+      expect(committed.p_public_state.lifelines.phone.hintIsCorrect).toBeNull();
+    },
+  );
+
+  it.each([
+    ['waiting', createInitialState()],
+    ['question_active', {
+      ...createInitialState(),
+      status: 'question_active' as const,
+      position: 1,
+      questionEndsAt: 200,
+    }],
+    ['revealed', {
+      ...createInitialState(),
+      status: 'revealed' as const,
+      position: 1,
+      correctIndex: 2 as const,
+      lastResult: 'correct' as const,
+    }],
+    ['finished', {
+      ...createInitialState(),
+      status: 'finished' as const,
+      position: 1,
+      correctIndex: 2 as const,
+      lastResult: 'correct' as const,
+      winnings: 5000,
+      finishReason: 'won' as const,
+    }],
+  ])('does not load an answer when reveal state is %s', async (_status, state) => {
+    const deps = makeDeps(state);
+    const event = makeEvent({ type: 'reveal', actor: { id: hostId, role: 'host' } });
+
+    await expect(runSessionEvent(deps, { sessionId, event })).resolves.toEqual({
+      ok: false,
+      reason: 'rejected',
+      error: 'wrong_state',
+    });
+    expect(deps.loadCorrectIndex).not.toHaveBeenCalled();
+    expect(deps.commit).not.toHaveBeenCalled();
+  });
+
+  it('does not load an answer before confirming host ownership', async () => {
+    const state: SessionState = {
+      ...createInitialState(),
+      status: 'locked',
+      position: 3,
+      lockedAnswer: 1,
+    };
+    const deps = makeDeps(state);
+    const event = makeEvent({
+      type: 'reveal',
+      actor: { id: 'other-host', role: 'host' },
+    });
+
+    await expect(runSessionEvent(deps, { sessionId, event })).resolves.toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+    expect(deps.loadCorrectIndex).not.toHaveBeenCalled();
+  });
+
+  it('returns unknown without committing when the correct answer is missing', async () => {
+    const state: SessionState = {
+      ...createInitialState(),
+      status: 'locked',
+      position: 3,
+      lockedAnswer: 1,
+    };
+    const deps = makeDeps(state, {
+      loadCorrectIndex: vi.fn(async () => null),
+    });
+    const event = makeEvent({ type: 'reveal', actor: { id: hostId, role: 'host' } });
+
+    await expect(runSessionEvent(deps, { sessionId, event })).resolves.toEqual({
+      ok: false,
+      reason: 'unknown',
+    });
+    expect(deps.commit).not.toHaveBeenCalled();
+  });
+
+  it('returns unknown when loading the correct answer throws', async () => {
+    const state: SessionState = {
+      ...createInitialState(),
+      status: 'locked',
+      position: 3,
+      lockedAnswer: 1,
+    };
+    const deps = makeDeps(state, {
+      loadCorrectIndex: vi.fn(async () => {
+        throw new Error('answer dependency private failure');
+      }),
+    });
+    const event = makeEvent({ type: 'reveal', actor: { id: hostId, role: 'host' } });
+
+    await expect(runSessionEvent(deps, { sessionId, event })).resolves.toEqual({
+      ok: false,
+      reason: 'unknown',
+    });
+    expect(deps.commit).not.toHaveBeenCalled();
+    const output = JSON.stringify(loggedOutput);
+    expect(output).not.toContain('answer dependency private failure');
+    expect(output).not.toContain('3');
+  });
+
+  it('ignores a runtime supplied correctIndex on a reveal request', async () => {
+    const state: SessionState = {
+      ...createInitialState(),
+      status: 'locked',
+      position: 3,
+      lockedAnswer: 2,
+    };
+    const deps = makeDeps(state, { loadCorrectIndex: vi.fn(async () => 2 as const) });
+    const event = {
+      type: 'reveal',
+      actor: { id: hostId, role: 'host' },
+      correctIndex: 1,
+    } as RunnableEvent;
+
+    await expect(runSessionEvent(deps, { sessionId, event })).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(vi.mocked(deps.commit).mock.calls[0][0].p_engine_state.correctIndex).toBe(2);
+  });
+
+  it('reloads the correct answer after a conflict', async () => {
+    const state: SessionState = {
+      ...createInitialState(),
+      status: 'locked',
+      position: 6,
+      lockedAnswer: 2,
+    };
+    const loadSession = vi.fn<RunSessionEventDeps['loadSession']>()
+      .mockResolvedValue({
+        hostId,
+        engineState: state,
+        version: 7,
+        currentQuestion: question,
+      });
+    const loadCorrectIndex = vi.fn(async () => 2 as const);
+    const commit = vi.fn<RunSessionEventDeps['commit']>()
+      .mockResolvedValueOnce({ data: null, error: { code: 'PJ003' } })
+      .mockResolvedValueOnce({ data: 9, error: null });
+    const deps = makeDeps(state, { loadSession, loadCorrectIndex, commit });
+    const event = makeEvent({ type: 'reveal', actor: { id: hostId, role: 'host' } });
+
+    await expect(runSessionEvent(deps, { sessionId, event })).resolves.toEqual({
+      ok: true,
+      version: 9,
+    });
+    expect(loadCorrectIndex).toHaveBeenNthCalledWith(1, sessionId, 6);
+    expect(loadCorrectIndex).toHaveBeenNthCalledWith(2, sessionId, 6);
+    expect(loadCorrectIndex).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps answer, session, and question data out of every reveal log path', async () => {
+    const privateSessionId = 'distinctive-reveal-session-940';
+    const privateQuestionText = 'distinctive reveal question text 271';
+    const privateQuestion = { ...question, text: privateQuestionText };
+    const lockedState: SessionState = {
+      ...createInitialState(),
+      status: 'locked',
+      position: 11,
+      lockedAnswer: 3,
+    };
+    const event = makeEvent({ type: 'reveal', actor: { id: hostId, role: 'host' } });
+    const privateDeps = (overrides: Partial<RunSessionEventDeps> = {}, state: unknown = lockedState) =>
+      makeDeps(state, {
+        loadSession: vi.fn(async () => ({
+          hostId,
+          engineState: structuredClone(state as SessionState),
+          version: 7,
+          currentQuestion: privateQuestion,
+        })),
+        loadCorrectIndex: vi.fn(async () => 3 as const),
+        ...overrides,
+      }, privateQuestion);
+
+    await runSessionEvent(privateDeps(), { sessionId: privateSessionId, event });
+    await runSessionEvent(
+      privateDeps({}, createInitialState()),
+      { sessionId: privateSessionId, event },
+    );
+    await runSessionEvent(
+      privateDeps({
+        loadSession: vi.fn(async () => ({
+          hostId: 'different-owner',
+          engineState: lockedState,
+          version: 7,
+          currentQuestion: privateQuestion,
+        })),
+      }),
+      { sessionId: privateSessionId, event },
+    );
+    await runSessionEvent(
+      privateDeps({ loadCorrectIndex: vi.fn(async () => null) }),
+      { sessionId: privateSessionId, event },
+    );
+    await runSessionEvent(
+      privateDeps({
+        loadCorrectIndex: vi.fn(async () => {
+          throw new Error('answer dependency private failure');
+        }),
+      }),
+      { sessionId: privateSessionId, event },
+    );
+    await runSessionEvent(
+      privateDeps({
+        commit: vi.fn<RunSessionEventDeps['commit']>()
+          .mockResolvedValueOnce({ data: null, error: { code: 'PJ003' } })
+          .mockResolvedValueOnce({ data: 8, error: null }),
+      }),
+      { sessionId: privateSessionId, event },
+    );
+
+    const output = JSON.stringify(loggedOutput);
+    expect(output).not.toContain('3');
+    expect(output).not.toContain(privateSessionId);
+    expect(output).not.toContain(hostId);
+    expect(output).not.toContain(privateQuestionText);
+    expect(output).not.toContain('answer dependency private failure');
+  });
+
+  it.each([
+    ['start', createInitialState(), {
+      type: 'start',
+      actor: { id: hostId, role: 'host' },
+    }],
+    ['next', {
+      ...createInitialState(),
+      status: 'revealed',
+      position: 1,
+      lastResult: 'correct',
+    }, {
+      type: 'next',
+      actor: { id: hostId, role: 'host' },
+    }],
+    ['select_answer', {
+      ...createInitialState(),
+      status: 'question_active',
+      position: 1,
+      questionEndsAt: 200,
+      contestantId: participantId,
+    }, {
+      type: 'select_answer',
+      actor: { id: participantId, role: 'contestant' },
+      option: 2,
+    }],
+    ['lock_in', {
+      ...createInitialState(),
+      status: 'question_active',
+      position: 1,
+      questionEndsAt: 200,
+      contestantId: participantId,
+      selectedAnswer: 2,
+    }, {
+      type: 'lock_in',
+      actor: { id: participantId, role: 'contestant' },
+    }],
+    ['timer_expired', {
+      ...createInitialState(),
+      status: 'question_active',
+      position: 1,
+      questionEndsAt: 100,
+    }, {
+      type: 'timer_expired',
+      actor: { id: 'system-id', role: 'system' },
+    }],
+    ['set_contestant', createInitialState(), {
+      type: 'set_contestant',
+      actor: { id: hostId, role: 'host' },
+      participantId,
+    }],
+    ['end_session', createInitialState(), {
+      type: 'end_session',
+      actor: { id: hostId, role: 'host' },
+    }],
+    ['walk_away', {
+      ...createInitialState(),
+      status: 'revealed',
+      position: 1,
+      correctIndex: 2,
+      lastResult: 'correct',
+      contestantId: participantId,
+    }, {
+      type: 'walk_away',
+      actor: { id: participantId, role: 'contestant' },
+    }],
+    ['use_lifeline', {
+      ...createInitialState(),
+      status: 'question_active',
+      position: 1,
+      questionEndsAt: 200,
+      contestantId: participantId,
+    }, {
+      type: 'use_lifeline',
+      actor: { id: participantId, role: 'contestant' },
+      lifeline: { lifeline: 'phone', hint: 2, hintIsCorrect: true },
+    }],
+  ])('%s never loads the correct answer', async (_name, state, event) => {
+    const deps = makeDeps(state);
+
+    await runSessionEvent(deps, { sessionId, event: event as RunnableEvent });
+
+    expect(deps.loadCorrectIndex).not.toHaveBeenCalled();
+  });
+
   it('commits set_contestant with the loaded version and public state', async () => {
     const state = createInitialState();
     state.lifelines.phone = {
@@ -304,7 +645,6 @@ describe('runSessionEvent', () => {
       makeEvent({
         type: 'reveal',
         actor: { id: hostId, role: 'host' },
-        correctIndex: 0,
       }),
     ],
   ])('keeps the existing current question when the new state is %s', async (_label, state, event) => {
@@ -332,7 +672,6 @@ describe('runSessionEvent', () => {
     const event = makeEvent({
       type: 'reveal',
       actor: { id: hostId, role: 'host' },
-      correctIndex: 0,
     });
 
     await expectFinishedQuestionCommit(state, event, 0);
@@ -349,7 +688,6 @@ describe('runSessionEvent', () => {
     const event = makeEvent({
       type: 'reveal',
       actor: { id: hostId, role: 'host' },
-      correctIndex: 0,
     });
 
     await expectFinishedQuestionCommit(state, event, 0);
@@ -366,7 +704,6 @@ describe('runSessionEvent', () => {
     const event = makeEvent({
       type: 'reveal',
       actor: { id: hostId, role: 'host' },
-      correctIndex: 0,
     });
 
     await expectFinishedQuestionCommit(state, event, 0);

@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { createAdminClient } from '../supabase/admin';
+import { createAnswerDeps } from './answer-deps';
 import type { RunSessionEventDeps } from './run-session-event';
 
 type LoadedSession = {
@@ -70,7 +71,9 @@ export function toQuestionRow(row: unknown): {
   };
 }
 
-export function createRunSessionEventDeps(): RunSessionEventDeps {
+export function createRunSessionEventDeps(
+  answerDeps: Pick<ReturnType<typeof createAnswerDeps>, 'loadCorrectIndex'> = createAnswerDeps(),
+): RunSessionEventDeps {
   const admin = createAdminClient();
 
   return {
@@ -107,6 +110,7 @@ export function createRunSessionEventDeps(): RunSessionEventDeps {
       if (questionError) throw questionError;
       return toQuestionRow(data);
     },
+    loadCorrectIndex: answerDeps.loadCorrectIndex,
     async commit(args) {
       const { data, error } = await admin.rpc('commit_transition', args);
       return {

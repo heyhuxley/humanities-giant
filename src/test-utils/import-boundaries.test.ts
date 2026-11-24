@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   checkBoundaries,
   extractImports,
+  findAnswerDataFiles,
   isClientFile,
   resolveSpecifier,
 } from './import-boundaries';
@@ -133,6 +134,46 @@ describe('checkBoundaries', () => {
       'src/lib/sessions/session-event-deps.ts',
       `import { createAdminClient } from '${ADMIN}';`,
     )).toEqual([]);
+  });
+
+  it('allows the admin import in answer dependencies', () => {
+    expect(violations(
+      'src/lib/sessions/answer-deps.ts',
+      `import { createAdminClient } from '${ADMIN}';`,
+    )).toEqual([]);
+  });
+
+  it('allows answer dependencies only in session dependencies and test files', () => {
+    const answerDeps = '@/lib/sessions/answer-deps';
+    expect(violations(
+      'src/lib/sessions/session-event-deps.ts',
+      `import { createAnswerDeps } from '${answerDeps}';`,
+    )).toEqual([]);
+    expect(violations(
+      'src/lib/sessions/answer-deps.test.ts',
+      `import { createAnswerDeps } from '${answerDeps}';`,
+    )).toEqual([]);
+    expectRule(
+      violations('src/app/play/page.tsx', `import '${answerDeps}';`),
+      'answer-deps-importer',
+    );
+    expectRule(
+      violations('src/components/player.tsx', `'use client';\nimport '${answerDeps}';`),
+      'answer-deps-importer',
+    );
+  });
+
+  it('scans non test TypeScript files for answer field names', () => {
+    expect(findAnswerDataFiles([
+      { path: 'src/lib/sessions/answer-deps.ts', source: "from('question_answers')" },
+      { path: 'src/app/host/questions.tsx', source: '.select("correct_index")' },
+      { path: 'src/lib/sessions/safe.ts', source: 'export const value = 1;' },
+      { path: 'src/lib/sessions/example.test.ts', source: 'question_answers correct_index' },
+      { path: 'src/app/host/questions.js', source: 'question_answers' },
+    ])).toEqual([
+      'src/app/host/questions.tsx',
+      'src/lib/sessions/answer-deps.ts',
+    ]);
   });
 
   it('exempts only test file name endings', () => {

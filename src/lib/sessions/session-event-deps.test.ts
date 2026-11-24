@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { toLoadedSession, toQuestionRow } from './session-event-deps';
+import {
+  createRunSessionEventDeps,
+  toLoadedSession,
+  toQuestionRow,
+} from './session-event-deps';
 
 vi.mock('server-only', () => ({}));
+vi.mock('../supabase/admin', () => ({
+  createAdminClient: () => ({ from: vi.fn(), rpc: vi.fn() }),
+}));
 
 const engineState = { status: 'waiting' };
 const currentQuestion = { id: 'question-id', text: 'Question', options: ['A', 'B', 'C', 'D'] };
@@ -99,5 +106,15 @@ describe('toQuestionRow', () => {
     ['an array with a non string option', ['A', 'B', 3, 'D']],
   ])('returns null when options are %s', (_label, options) => {
     expect(toQuestionRow({ id: 'question-id', text: 'Question', options })).toBeNull();
+  });
+});
+
+describe('createRunSessionEventDeps', () => {
+  it('uses the injected answer dependency', async () => {
+    const loadCorrectIndex = vi.fn(async () => 2 as const);
+    const deps = createRunSessionEventDeps({ loadCorrectIndex });
+
+    await expect(deps.loadCorrectIndex('session-id', 4)).resolves.toBe(2);
+    expect(loadCorrectIndex).toHaveBeenCalledWith('session-id', 4);
   });
 });
