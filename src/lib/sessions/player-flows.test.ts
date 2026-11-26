@@ -4,9 +4,11 @@ import {
   lifelineFlow,
   submitAnswerFlow,
   voteFlow,
+  walkAwayFlow,
   type KnockDependencies,
   type LifelineDependencies,
   type SubmitAnswerDependencies,
+  type WalkAwayDependencies,
 } from './player-flows';
 import type { RunSessionEventResult } from './run-session-event';
 import type { CastVoteResult } from './cast-vote';
@@ -190,6 +192,74 @@ describe('lifelineFlow', () => {
         reason: 'unknown',
       });
       expect(log).toHaveBeenCalledWith('use_lifeline_dependency_failure');
+      expect(JSON.stringify(log.mock.calls)).not.toContain(input.userId);
+      expect(JSON.stringify(log.mock.calls)).not.toContain(input.sessionId);
+      expect(JSON.stringify(log.mock.calls)).not.toContain(participantId);
+    },
+  );
+});
+
+function walkAwayDeps(
+  run: WalkAwayDependencies['run'] = vi.fn(async () => ({ ok: true as const, version: 3 })),
+  findParticipantId: WalkAwayDependencies['findParticipantId'] = vi.fn(async () => participantId),
+): WalkAwayDependencies {
+  return { findParticipantId, run };
+}
+
+describe('walkAwayFlow', () => {
+  const walkAwayInput = { userId: input.userId, sessionId: input.sessionId };
+
+  it('runs exactly one walk_away event with the found participant as actor', async () => {
+    const run = vi.fn<WalkAwayDependencies['run']>().mockResolvedValue({
+      ok: true,
+      version: 4,
+    });
+
+    await expect(walkAwayFlow(walkAwayDeps(run), walkAwayInput)).resolves.toEqual({
+      ok: true,
+      version: 4,
+    });
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith({
+      type: 'walk_away',
+      actor: { id: participantId, role: 'contestant' },
+    });
+    expect(JSON.stringify(run.mock.calls)).not.toContain(input.userId);
+  });
+
+  it('does not run when participant lookup returns null', async () => {
+    const run = vi.fn<WalkAwayDependencies['run']>();
+    await expect(walkAwayFlow(
+      walkAwayDeps(run, vi.fn(async () => null)),
+      walkAwayInput,
+    )).resolves.toEqual({ ok: false, reason: 'not_found' });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { ok: true, version: 3 },
+    { ok: false, reason: 'rejected', error: 'wrong_state' },
+    { ok: false, reason: 'rejected', error: 'not_allowed' },
+    { ok: false, reason: 'conflict' },
+    { ok: false, reason: 'unknown' },
+  ] satisfies RunSessionEventResult[])('passes runner result through unchanged', async (result) => {
+    const run = vi.fn<WalkAwayDependencies['run']>().mockResolvedValue(result);
+    await expect(walkAwayFlow(walkAwayDeps(run), walkAwayInput)).resolves.toBe(result);
+  });
+
+  it.each(['findParticipantId', 'run'] as const)(
+    'returns unknown for a thrown %s dependency and logs no identifiers',
+    async (dependency) => {
+      const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const deps = dependency === 'findParticipantId'
+        ? walkAwayDeps(undefined, vi.fn(async () => { throw new Error('private'); }))
+        : walkAwayDeps(vi.fn(async () => { throw new Error('private'); }));
+
+      await expect(walkAwayFlow(deps, walkAwayInput)).resolves.toEqual({
+        ok: false,
+        reason: 'unknown',
+      });
+      expect(log).toHaveBeenCalledWith('walk_away_dependency_failure');
       expect(JSON.stringify(log.mock.calls)).not.toContain(input.userId);
       expect(JSON.stringify(log.mock.calls)).not.toContain(input.sessionId);
       expect(JSON.stringify(log.mock.calls)).not.toContain(participantId);

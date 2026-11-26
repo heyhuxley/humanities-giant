@@ -21,6 +21,11 @@ export type LifelineDependencies = {
   run(event: RunnableEvent): Promise<RunSessionEventResult>;
 };
 
+export type WalkAwayDependencies = {
+  findParticipantId(sessionId: string, userId: string): Promise<string | null>;
+  run(event: RunnableEvent): Promise<RunSessionEventResult>;
+};
+
 export type VoteDependencies = {
   castVote(userId: string, sessionId: string, option: OptionIndex): Promise<CastVoteResult>;
 };
@@ -75,6 +80,24 @@ export async function lifelineFlow(
     return await deps.run(event);
   } catch {
     logFailure('use_lifeline_dependency_failure');
+    return { ok: false, reason: 'unknown' };
+  }
+}
+
+export async function walkAwayFlow(
+  deps: WalkAwayDependencies,
+  input: { userId: string; sessionId: string },
+): Promise<RunSessionEventResult> {
+  try {
+    const participantId = await deps.findParticipantId(input.sessionId, input.userId);
+    if (participantId === null) return { ok: false, reason: 'not_found' };
+
+    return await deps.run({
+      type: 'walk_away',
+      actor: { id: participantId, role: 'contestant' },
+    });
+  } catch {
+    logFailure('walk_away_dependency_failure');
     return { ok: false, reason: 'unknown' };
   }
 }

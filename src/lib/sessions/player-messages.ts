@@ -24,6 +24,21 @@ export function describeLifelineResult(result: RunSessionEventResult): string | 
   return 'Could not use the lifeline. Try again.';
 }
 
+export function describeWalkAwayResult(result: RunSessionEventResult): string | null {
+  if (result.ok) return null;
+  if (result.reason === 'not_found') return 'You are not part of this session.';
+  if (result.reason === 'rejected') {
+    if (result.error === 'not_allowed') return 'Only the contestant can walk away.';
+    if (result.error === 'wrong_state') {
+      return 'You can only walk away right after a correct answer is revealed, before the host moves on.';
+    }
+  }
+  if (result.reason === 'conflict') {
+    return 'Another update happened at the same time. Try again.';
+  }
+  return 'Could not walk away. Try again.';
+}
+
 export function describeSubmitResult(result: RunSessionEventResult): string | null {
   if (result.ok) return null;
   if (result.reason === 'not_found') return 'You are not part of this session.';

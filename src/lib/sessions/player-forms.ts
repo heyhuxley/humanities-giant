@@ -10,6 +10,7 @@ export type VoteFormResult =
   | { ok: true; sessionId: string; option: 0 | 1 | 2 | 3 }
   | PlayerFormError;
 export type KnockFormResult = { ok: true; sessionId: string } | PlayerFormError;
+export type WalkAwayFormResult = { ok: true; sessionId: string } | PlayerFormError;
 export type PlayerLifeline = 'fifty_fifty' | 'phone' | 'audience';
 export type LifelineFormResult =
   | { ok: true; sessionId: string; lifeline: PlayerLifeline }
@@ -58,6 +59,12 @@ export function parseVoteForm(formData: FormData): VoteFormResult {
 }
 
 export function parseKnockForm(formData: FormData): KnockFormResult {
+  const sessionId = readSessionId(formData);
+  if (sessionId === null) return { ok: false, error: INVALID_FORM_ERROR };
+  return { ok: true, sessionId };
+}
+
+export function parseWalkAwayForm(formData: FormData): WalkAwayFormResult {
   const sessionId = readSessionId(formData);
   if (sessionId === null) return { ok: false, error: INVALID_FORM_ERROR };
   return { ok: true, sessionId };

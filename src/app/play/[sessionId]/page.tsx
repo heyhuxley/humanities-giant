@@ -1,14 +1,19 @@
 import { notFound } from 'next/navigation';
 import { readCurrentQuestion, readPublicState } from '../../../lib/sessions/read-public-state';
-import { describeFinishReason } from '../../../lib/sessions/reveal-view';
-import { formatNaira } from '../../../lib/sessions/ladder-view';
+import { buildLadderRows } from '../../../lib/sessions/ladder-view';
 import { createClient } from '../../../lib/supabase/server';
 import { LiveSessionRefresh } from '../../../components/live-session-refresh';
 import { CountdownTimer } from '../../../components/countdown-timer';
+import { FinalResult } from '../../../components/final-result';
 import { MoneyLadder } from '../../../components/money-ladder';
 import { ContestantPanel } from './contestant-panel';
 import { AudiencePanel } from './audience-panel';
-import { castVoteAction, submitAnswerAction, useLifelineAction } from './actions';
+import {
+  castVoteAction,
+  submitAnswerAction,
+  useLifelineAction,
+  walkAwayAction,
+} from './actions';
 import { knockAction } from '../../knock/actions';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
@@ -120,6 +125,15 @@ export default async function PlayPage({
 
   const participants = roster.filter((entry): entry is Participant => entry !== null);
   const isWaiting = publicState.status === 'waiting';
+  const ladderRows = publicState.position === null
+    ? []
+    : buildLadderRows({
+      position: publicState.position,
+      status: publicState.status,
+      lastResult: publicState.lastResult,
+    });
+  const walkAwayAmount = ladderRows.find((row) => row.position === publicState.position)?.amount
+    ?? null;
   const showQuestionScreen =
     (publicState.status === 'question_active' ||
       publicState.status === 'locked' ||
@@ -195,6 +209,8 @@ export default async function PlayPage({
                   lifelines={publicState.lifelines}
                   submitAction={submitAnswerAction}
                   lifelineAction={useLifelineAction}
+                  walkAwayAction={walkAwayAction}
+                  walkAwayAmount={walkAwayAmount}
                 />
               ) : (
                 <AudiencePanel
@@ -231,12 +247,22 @@ export default async function PlayPage({
             <p>Question unavailable</p>
           ) : null}
           {publicState.status === 'finished' ? (
-            <div className="space-y-1">
-              {publicState.winnings !== null ? (
-                <p>Winnings: {formatNaira(publicState.winnings)}</p>
-              ) : null}
-              <p>Finish reason: {describeFinishReason(publicState.finishReason)}</p>
-            </div>
+            <FinalResult
+              winnings={publicState.winnings}
+              finishReason={publicState.finishReason}
+              position={publicState.position}
+              lastResult={publicState.lastResult}
+              correctIndex={publicState.correctIndex}
+              contestantName={participants.find((participant) =>
+                participant.id === publicState.contestantId,
+              )?.display_name ?? null}
+              lifelinesUsed={{
+                fiftyFifty: publicState.lifelines.fiftyFifty.used,
+                phone: publicState.lifelines.phone.used,
+                audience: publicState.lifelines.audience.used,
+              }}
+              question={currentQuestion}
+            />
           ) : null}
         </section>
       )}

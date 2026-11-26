@@ -71,9 +71,11 @@ const CORRECT_INDEX_ALLOWLIST = [
   'src/app/host/questions/[id]/edit/page.tsx',
   'src/app/host/questions/actions.ts',
   'src/app/host/questions/question-form.tsx',
+  'src/app/host/sessions/[id]/page.tsx',
   'src/app/play/[sessionId]/audience-panel.tsx',
   'src/app/play/[sessionId]/contestant-panel.tsx',
   'src/app/play/[sessionId]/page.tsx',
+  'src/components/final-result.tsx',
   'src/game/apply-event.ts',
   'src/game/initial-state.ts',
   'src/game/types.ts',
@@ -100,6 +102,17 @@ const LIFELINE_RESULTS_FORBIDDEN_TEXT = [
 const LIFELINE_RESULTS_PATHS = [
   'src/lib/sessions/lifeline-view.ts',
   'src/components/lifeline-results.tsx',
+];
+const FINAL_RESULT_PATHS = [
+  'src/lib/sessions/final-result-view.ts',
+  'src/components/final-result.tsx',
+];
+const FINAL_RESULT_FORBIDDEN_TEXT = [
+  ['correct', '_index'].join(''),
+  ['question', '_answers'].join(''),
+  ['session', '_private'].join(''),
+  ['hint', 'IsCorrect'].join(''),
+  ['participant', '_id'].join(''),
 ];
 
 function playerHintIdentifierFiles(filesToCheck: SourceFile[]): string[] {
@@ -839,6 +852,70 @@ describe('session import boundaries', () => {
     expect(LIFELINE_RESULTS_FORBIDDEN_TEXT.filter((text) =>
       realResults?.source.toLowerCase().includes(text),
     )).toEqual([]);
+  });
+
+  it('keeps final result views free of private imports and sensitive text', () => {
+    const fakeFiles: SourceFile[] = [
+      {
+        path: FINAL_RESULT_PATHS[0],
+        source: [
+          "import 'server-only';",
+          "import '@/lib/supabase/admin';",
+          "import 'react';",
+          `const restricted = '${FINAL_RESULT_FORBIDDEN_TEXT.join(' ')}';`,
+        ].join('\n'),
+      },
+      {
+        path: FINAL_RESULT_PATHS[1],
+        source: [
+          "import 'next/server';",
+          "import '@supabase/supabase-js';",
+          "import 'react-dom/server';",
+          `const restricted = '${FINAL_RESULT_FORBIDDEN_TEXT.join(' ')}';`,
+        ].join('\n'),
+      },
+    ];
+    const realFiles = files.filter((file) => FINAL_RESULT_PATHS.includes(file.path));
+    expect(realFiles.map((file) => file.path).sort()).toEqual([...FINAL_RESULT_PATHS].sort());
+    expect(lifelineForbiddenImports(fakeFiles)).toHaveLength(6);
+    expect(lifelineForbiddenImports(realFiles)).toEqual([]);
+
+    for (const file of [...fakeFiles, ...realFiles]) {
+      const found = FINAL_RESULT_FORBIDDEN_TEXT.filter((text) =>
+        file.source.toLowerCase().includes(text.toLowerCase()),
+      );
+      expect(found, file.path).toEqual(fakeFiles.includes(file) ? FINAL_RESULT_FORBIDDEN_TEXT : []);
+    }
+  });
+
+  it('keeps walkAwayAction only in the player action file', () => {
+    const fakeFiles: SourceFile[] = [
+      { path: PLAY_ACTIONS, source: 'export async function walkAwayAction() {}' },
+      { path: 'src/app/host/actions.ts', source: 'export async function walkAwayAction() {}' },
+    ];
+    expect(actionDefinitionPaths(fakeFiles, 'walkAwayAction')).toEqual([
+      'src/app/host/actions.ts',
+      PLAY_ACTIONS,
+    ]);
+    expect(actionDefinitionPaths(files, 'walkAwayAction')).toEqual([PLAY_ACTIONS]);
+  });
+
+  it('keeps client files from importing player flows', () => {
+    const fakeFiles: SourceFile[] = [{
+      path: CONTESTANT_PANEL,
+      source: [
+        "'use client';",
+        "import { walkAwayFlow } from '../../../lib/sessions/player-flows';",
+      ].join('\n'),
+    }];
+    const flowImports = (sources: SourceFile[]) => sources
+      .filter((file) => isClientFile(file.source))
+      .flatMap((file) => extractImports(file.source)
+        .map((specifier) => resolveSpecifier(specifier, file.path))
+        .filter((modulePath) => modulePath === 'src/lib/sessions/player-flows'));
+
+    expect(flowImports(fakeFiles)).toEqual(['src/lib/sessions/player-flows']);
+    expect(flowImports(files)).toEqual([]);
   });
 
   it('keeps useLifelineAction only in play actions', () => {

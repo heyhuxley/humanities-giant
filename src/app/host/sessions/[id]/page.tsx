@@ -5,6 +5,7 @@ import { readCurrentQuestion, readPublicState } from '@/lib/sessions/read-public
 import { knockAction } from '../../../knock/actions';
 import { CountdownTimer } from '../../../../components/countdown-timer';
 import { LiveSessionRefresh } from '../../../../components/live-session-refresh';
+import { FinalResult } from '../../../../components/final-result';
 import {
   EndSessionControl,
   NextControl,
@@ -180,23 +181,29 @@ export default async function HostSessionPage({ params }: Readonly<{ params: Pro
           </div>
         )}
         {status === 'locked' ? <RevealControl sessionId={session.id} /> : null}
-        {status === 'revealed' ? <NextControl sessionId={session.id} /> : null}
+        {status === 'revealed' ? (
+          <>
+            <p>The contestant can walk away until you press Next.</p>
+            <NextControl sessionId={session.id} />
+          </>
+        ) : null}
         {safeState?.status === 'finished' ? (
-          <section aria-label="Session result" className="space-y-2 rounded border p-4">
-            <h2 className="text-lg font-semibold">Final result</h2>
-            <p>
-              Final winnings:{' '}
-              {safeState.winnings === null
-                ? 'Unavailable'
-                : `₦${new Intl.NumberFormat('en-NG').format(safeState.winnings)}`}
-            </p>
-            <p>
-              Finish reason:{' '}
-              {safeState.finishReason === null
-                ? 'Unavailable'
-                : safeState.finishReason.replaceAll('_', ' ')}
-            </p>
-          </section>
+          <FinalResult
+            winnings={safeState.winnings}
+            finishReason={safeState.finishReason}
+            position={safeState.position}
+            lastResult={safeState.lastResult}
+            correctIndex={safeState.correctIndex}
+            contestantName={participants.find((participant) =>
+              participant.id === safeState.contestantId,
+            )?.display_name ?? null}
+            lifelinesUsed={{
+              fiftyFifty: safeState.lifelines.fiftyFifty.used,
+              phone: safeState.lifelines.phone.used,
+              audience: safeState.lifelines.audience.used,
+            }}
+            question={question}
+          />
         ) : null}
         {safeState?.status !== 'finished' ? <EndSessionControl sessionId={session.id} /> : null}
       </section>

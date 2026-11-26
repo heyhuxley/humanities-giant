@@ -35,6 +35,11 @@ type Props = Readonly<{
     prev: PlayerActionState,
     formData: FormData,
   ) => Promise<PlayerActionState>;
+  walkAwayAction: (
+    prev: PlayerActionState,
+    formData: FormData,
+  ) => Promise<PlayerActionState>;
+  walkAwayAmount: number | null;
 }>;
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
@@ -57,6 +62,8 @@ export function ContestantPanel({
   lifelines,
   submitAction,
   lifelineAction,
+  walkAwayAction,
+  walkAwayAmount,
 }: Props) {
   const [tentative, setTentative] = useState<Option | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -70,6 +77,11 @@ export function ContestantPanel({
   });
   const [lifelineActionState, lifelineFormAction, lifelinePending] = useActionState(
     submitLifeline,
+    { error: null },
+  );
+  const [walkAwayConfirming, setWalkAwayConfirming] = useState(false);
+  const [walkAwayActionState, walkAwayFormAction, walkAwayPending] = useActionState(
+    walkAwayAction,
     { error: null },
   );
   const availableOptions = optionAvailability(lifelines.fiftyFifty.removed);
@@ -249,7 +261,50 @@ export function ContestantPanel({
       {status === 'locked' ? (
         <p>Waiting for the host to reveal</p>
       ) : status === 'revealed' ? (
-        <p>Waiting for the host to continue</p>
+        <div className="space-y-2">
+          <p>Waiting for the host to continue</p>
+          {walkAwayAmount !== null ? (
+            <div className="space-y-2">
+              {!walkAwayConfirming ? (
+                <button
+                  type="button"
+                  disabled={walkAwayPending}
+                  onClick={() => setWalkAwayConfirming(true)}
+                  className="min-h-11 w-full rounded-lg border border-stone-300 px-4 py-3 text-left font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Walk away with {formatNaira(walkAwayAmount)}
+                </button>
+              ) : (
+                <div role="alert" className="space-y-2 rounded-lg border border-stone-300 p-3">
+                  <p>
+                    Walk away with {formatNaira(walkAwayAmount)}? This ends the game for everyone.
+                  </p>
+                  <form action={walkAwayFormAction} className="flex gap-2">
+                    <input type="hidden" name="sessionId" value={sessionId} />
+                    <button
+                      type="submit"
+                      disabled={walkAwayPending}
+                      className="min-h-11 flex-1 rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      disabled={walkAwayPending}
+                      onClick={() => setWalkAwayConfirming(false)}
+                      className="min-h-11 flex-1 rounded-lg border border-stone-300 px-4 py-3 font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                </div>
+              )}
+              {walkAwayActionState.error ? (
+                <p role="alert" className="text-red-700">{walkAwayActionState.error}</p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       ) : !finalized && !effectiveOpen ? (
         <p className="font-semibold">Time is up</p>
       ) : !finalized && tentative !== null && !confirming ? (

@@ -3,6 +3,7 @@ import {
   describeLifelineResult,
   describeKnockOutcome,
   describeSubmitResult,
+  describeWalkAwayResult,
 } from './player-messages';
 import type { RunSessionEventResult } from './run-session-event';
 
@@ -37,6 +38,42 @@ describe('describeLifelineResult', () => {
     (reason) => {
       const result: RunSessionEventResult = { ok: false, reason };
       expect(describeLifelineResult(result)).toBe('Could not use the lifeline. Try again.');
+    },
+  );
+});
+
+describe('describeWalkAwayResult', () => {
+  it('returns null on success', () => {
+    expect(describeWalkAwayResult({ ok: true, version: 1 })).toBeNull();
+  });
+
+  it('maps not found', () => {
+    expect(describeWalkAwayResult({ ok: false, reason: 'not_found' }))
+      .toBe('You are not part of this session.');
+  });
+
+  it.each([
+    ['not_allowed', 'Only the contestant can walk away.'],
+    [
+      'wrong_state',
+      'You can only walk away right after a correct answer is revealed, before the host moves on.',
+    ],
+    ['deadline_passed', 'Could not walk away. Try again.'],
+  ] as const)('maps rejected %s', (error, message) => {
+    const result: RunSessionEventResult = { ok: false, reason: 'rejected', error };
+    expect(describeWalkAwayResult(result)).toBe(message);
+  });
+
+  it('maps conflict', () => {
+    expect(describeWalkAwayResult({ ok: false, reason: 'conflict' }))
+      .toBe('Another update happened at the same time. Try again.');
+  });
+
+  it.each(['unknown', 'participant_not_found', 'unsafe_state'] as const)(
+    'maps %s to the generic failure',
+    (reason) => {
+      const result: RunSessionEventResult = { ok: false, reason };
+      expect(describeWalkAwayResult(result)).toBe('Could not walk away. Try again.');
     },
   );
 });

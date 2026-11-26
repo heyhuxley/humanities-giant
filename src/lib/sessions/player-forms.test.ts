@@ -4,6 +4,7 @@ import {
   parseLifelineForm,
   parseSubmitAnswerForm,
   parseVoteForm,
+  parseWalkAwayForm,
 } from './player-forms';
 
 const SESSION_ID = 'A0B1C2D3-E4F5-4678-9012-ABCDEF012345';
@@ -125,6 +126,37 @@ describe('parseKnockForm', () => {
       actorId: 'untrusted',
       event: 'start',
     }))).toMatchObject({ ok: true });
+  });
+});
+
+describe('parseWalkAwayForm', () => {
+  it('accepts a UUID and returns its lowercase form', () => {
+    expect(parseWalkAwayForm(makeForm({ sessionId: SESSION_ID }))).toEqual({
+      ok: true,
+      sessionId: SESSION_ID.toLowerCase(),
+    });
+  });
+
+  it.each([
+    ['missing', makeForm()],
+    ['not a UUID', makeForm({ sessionId: 'not-a-uuid' })],
+  ])('rejects a %s session id', (_label, formData) => {
+    expect(parseWalkAwayForm(formData)).toMatchObject({ ok: false });
+  });
+
+  it('rejects a File value for the session id', () => {
+    expect(parseWalkAwayForm(formWithFile('sessionId'))).toMatchObject({ ok: false });
+  });
+
+  it('ignores extra fields without echoing them', () => {
+    expect(parseWalkAwayForm(makeForm({
+      sessionId: SESSION_ID,
+      actorId: 'untrusted',
+      event: 'end_session',
+    }))).toEqual({
+      ok: true,
+      sessionId: SESSION_ID.toLowerCase(),
+    });
   });
 });
 
