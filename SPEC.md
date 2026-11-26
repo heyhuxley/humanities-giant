@@ -471,3 +471,9 @@ shown. It is cleared only in `waiting`.
 
 ### 19.4 Randomness
 - Random choices use the server's cryptographic random source, injected so tests can control it. The engine uses no randomness.
+
+### 19.5 Runner rules
+- The runner takes the current time once per attempt and uses it for both the dry run and the real run.
+- If the dry run passes but the real run is rejected, the result is an internal error, not a game error.
+- Votes are counted from the votes table at the moment of use. A vote arriving at the same instant may or may not be counted. Only the option column is read, never who voted.
+- The runner receives its random source as a dependency. Randomness never enters the engine.
