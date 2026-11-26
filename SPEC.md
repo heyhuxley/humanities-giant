@@ -452,3 +452,22 @@ shown. It is cleared only in `waiting`.
 - A finished game with no reveal (ended by the host) shows no correct answer.
 - The money ladder shows the 15 amounts from the engine's ladder constants, the two guaranteed milestones (questions 5 and 10), and the contestant's position. A question counts as passed once its reveal shows a correct answer.
 - When the game finishes, every screen shows the winnings in naira and the reason in words (won, wrong answer, time ran out, walked away, ended by the host).
+
+## 19. Lifelines
+
+### 19.1 Rules
+- Only the contestant can use a lifeline, only in `question_active` and before the deadline. Each lifeline can be used once per session. Several different lifelines may be used on the same question.
+- The browser sends only which lifeline. The server builds the payload. Results are public to every screen and apply only to the question they were used on (`usedAtPosition`).
+
+### 19.2 Reading the answer
+- The correct index is read only for 50:50 and phone a friend, and only after a dry run with a placeholder payload shows that the engine would accept the event. The real run uses the same `now` as the dry run.
+- Requests the engine would reject never cause an answer read.
+
+### 19.3 Payloads
+- 50:50: one wrong option is chosen uniformly at random to stay; the other two wrong options are removed. The removed pair is stored in ascending order and never contains the correct option.
+- Phone a friend: with probability 60% the hint is the correct option, otherwise a wrong option chosen uniformly at random from the options not removed by a 50:50 used on the same question. `hintIsCorrect` is stored only in the private state.
+- Ask the audience: the server counts the current question's votes per option, sets the count of any option removed by a 50:50 on the same question to zero, and passes the four counts to the engine. Fewer than 3 counted votes shows "not enough votes" and the lifeline is still spent.
+- Individual votes are never sent to any client, only the percentages.
+
+### 19.4 Randomness
+- Random choices use the server's cryptographic random source, injected so tests can control it. The engine uses no randomness.
