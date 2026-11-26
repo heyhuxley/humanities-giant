@@ -7,6 +7,7 @@ import {
 } from '../../game';
 import {
   runSessionEvent,
+  type RevealRequest,
   type LifelineRequest,
   type RunnableEvent,
   type RunSessionEventDeps,
@@ -77,6 +78,69 @@ function lifelineRequest(
 ): LifelineRequest {
   return makeEvent({ type: 'use_lifeline', actor, lifeline });
 }
+
+describe('request types', () => {
+  it('structurally rejects lifeline and reveal payload fields', () => {
+    const removePair: [0, 1] = [0, 1];
+    const removePayload = {
+      type: 'use_lifeline' as const,
+      actor: { id: participantId, role: 'contestant' as const },
+      lifeline: 'fifty_fifty' as const,
+      remove: removePair,
+    };
+    // @ts-expect-error remove is not a runner lifeline request field
+    const removeRequest: LifelineRequest = removePayload;
+    void removeRequest;
+
+    const hintPayload = {
+      type: 'use_lifeline' as const,
+      actor: { id: participantId, role: 'contestant' as const },
+      lifeline: 'phone' as const,
+      hint: 2 as const,
+      hintIsCorrect: true,
+    };
+    // @ts-expect-error hint and hintIsCorrect are not runner lifeline request fields
+    const hintRequest: LifelineRequest = hintPayload;
+    void hintRequest;
+
+    const voteCounts: [1, 2, 3, 4] = [1, 2, 3, 4];
+    const votePayload = {
+      type: 'use_lifeline' as const,
+      actor: { id: participantId, role: 'contestant' as const },
+      lifeline: 'audience' as const,
+      voteCounts,
+    };
+    // @ts-expect-error voteCounts is not a runner lifeline request field
+    const voteRequest: LifelineRequest = votePayload;
+    void voteRequest;
+
+    const revealPayload = {
+      type: 'reveal' as const,
+      actor: { id: hostId, role: 'host' as const },
+      correctIndex: 2 as const,
+    };
+    // @ts-expect-error correctIndex is not a reveal runner request field
+    const revealRequest: RevealRequest = revealPayload;
+    void revealRequest;
+
+    const lifelineCorrectPayload = {
+      type: 'use_lifeline' as const,
+      actor: { id: participantId, role: 'contestant' as const },
+      lifeline: 'phone' as const,
+      correctIndex: 2 as const,
+    };
+    // @ts-expect-error correctIndex is not a runner lifeline request field
+    const lifelineCorrectRequest: LifelineRequest = lifelineCorrectPayload;
+    void lifelineCorrectRequest;
+
+    const plainLifelineRequest: LifelineRequest = {
+      type: 'use_lifeline',
+      actor: { id: participantId, role: 'contestant' },
+      lifeline: 'audience',
+    };
+    expect(plainLifelineRequest.lifeline).toBe('audience');
+  });
+});
 
 async function expectFinishedQuestionCommit(
   state: SessionState,
@@ -165,6 +229,8 @@ describe('runSessionEvent', () => {
       });
       expect(committed.p_public_state).toMatchObject({ correctIndex });
       expect(committed.p_public_state.lifelines.phone.hintIsCorrect).toBeNull();
+      expect(deps.loadVotes).not.toHaveBeenCalled();
+      expect(deps.randomInt).not.toHaveBeenCalled();
     },
   );
 
@@ -204,6 +270,48 @@ describe('runSessionEvent', () => {
     expect(deps.loadCorrectIndex).not.toHaveBeenCalled();
     expect(deps.commit).not.toHaveBeenCalled();
   });
+
+  it('blocks a lock-in state that leaked correctIndex and redacts the session and index', async () => {
+    const state = activeState({
+      selectedAnswer: 2,
+      correctIndex: 2,
+    });
+    const deps = makeDeps(state);
+    const event = makeEvent({
+      type: 'lock_in',
+      actor: { id: participantId, role: 'contestant' },
+    });
+
+    await expect(runSessionEvent(deps, { sessionId, event })).resolves.toEqual({
+      ok: false,
+      reason: 'unsafe_state',
+    });
+    expect(deps.commit).not.toHaveBeenCalled();
+    const output = JSON.stringify(loggedOutput);
+    expect(output).toContain('run_session_event_unsafe_state_blocked');
+    expect(output).not.toContain('2');
+    expect(output).not.toContain(sessionId);
+  });
+
+  it.each(['fifty_fifty', 'phone', 'audience'] as const)(
+    'blocks a %s lifeline state that leaked correctIndex',
+    async (lifeline) => {
+      const state = activeState({ correctIndex: 2 });
+      const deps = makeDeps(state, {
+        loadCorrectIndex: vi.fn(async () => 2 as const),
+        loadVotes: vi.fn(async () => []),
+      });
+
+      await expect(runSessionEvent(deps, {
+        sessionId,
+        event: lifelineRequest(lifeline),
+      })).resolves.toEqual({
+        ok: false,
+        reason: 'unsafe_state',
+      });
+      expect(deps.commit).not.toHaveBeenCalled();
+    },
+  );
 
   it('does not load an answer before confirming host ownership', async () => {
     const state: SessionState = {
@@ -277,12 +385,16 @@ describe('runSessionEvent', () => {
     };
     const deps = makeDeps(state, { loadCorrectIndex: vi.fn(async () => 2 as const) });
     const event = {
-      type: 'reveal',
-      actor: { id: hostId, role: 'host' },
+      type: 'reveal' as const,
+      actor: { id: hostId, role: 'host' as const },
       correctIndex: 1,
-    } as RunnableEvent;
+    };
 
-    await expect(runSessionEvent(deps, { sessionId, event })).resolves.toMatchObject({
+    await expect(runSessionEvent(deps, {
+      sessionId,
+      // @ts-expect-error runtime payload fields are intentionally exercised at the runner boundary
+      event,
+    })).resolves.toMatchObject({
       ok: true,
     });
     expect(vi.mocked(deps.commit).mock.calls[0][0].p_engine_state.correctIndex).toBe(2);
@@ -737,6 +849,77 @@ describe('runSessionEvent', () => {
     },
   );
 
+  it.each(['fifty_fifty', 'phone', 'audience'] as const)(
+    'rejects a changed-state %s lifeline conflict without a second source read',
+    async (lifeline) => {
+      const state = activeState();
+      const secondState = activeState();
+      const lifelines = createInitialState().lifelines;
+      if (lifeline === 'fifty_fifty') {
+        lifelines.fiftyFifty = { used: true, usedAtPosition: 4, removed: [1, 3] };
+      } else if (lifeline === 'phone') {
+        lifelines.phone = { used: true, usedAtPosition: 4, hint: 2, hintIsCorrect: true };
+      } else {
+        lifelines.audience = {
+          used: true,
+          usedAtPosition: 4,
+          percentages: [25, 25, 25, 25],
+          notEnoughVotes: false,
+        };
+      }
+      secondState.lifelines = lifelines;
+
+      const loadSession = vi
+        .fn<RunSessionEventDeps['loadSession']>()
+        .mockResolvedValueOnce({
+          hostId,
+          engineState: state,
+          version: 7,
+          currentQuestion: question,
+        })
+        .mockResolvedValueOnce({
+          hostId,
+          engineState: secondState,
+          version: 8,
+          currentQuestion: question,
+        });
+      const commit = vi
+        .fn<RunSessionEventDeps['commit']>()
+        .mockResolvedValueOnce({ data: null, error: { code: 'PJ003' } });
+      const loadCorrectIndex = vi.fn(async () => 2 as const);
+      const loadVotes = vi.fn(async () => [{ option_index: 2 }]);
+      const randomInt = vi.fn(() => 0);
+      const deps = makeDeps(state, {
+        loadSession,
+        commit,
+        loadCorrectIndex,
+        loadVotes,
+        randomInt,
+      });
+
+      await expect(runSessionEvent(deps, {
+        sessionId,
+        event: lifelineRequest(lifeline),
+      })).resolves.toEqual({
+        ok: false,
+        reason: 'rejected',
+        error: 'lifeline_used',
+      });
+
+      expect(commit).toHaveBeenCalledTimes(1);
+      expect(loadSession).toHaveBeenCalledTimes(2);
+      if (lifeline === 'fifty_fifty' || lifeline === 'phone') {
+        expect(loadCorrectIndex).toHaveBeenCalledTimes(1);
+        expect(loadVotes).not.toHaveBeenCalled();
+        expect(randomInt).toHaveBeenCalledTimes(1);
+      } else {
+        expect(loadVotes).toHaveBeenCalledTimes(1);
+        expect(loadCorrectIndex).not.toHaveBeenCalled();
+        expect(randomInt).not.toHaveBeenCalled();
+      }
+    },
+  );
+
   it('ignores runtime payload fields supplied with a lifeline request', async () => {
     const event = {
       type: 'use_lifeline' as const,
@@ -747,13 +930,17 @@ describe('runSessionEvent', () => {
       hintIsCorrect: true,
       voteCounts: [9, 8, 7, 6],
       correctIndex: 3,
-    } as RunnableEvent;
+    };
     const deps = makeDeps(activeState(), {
       loadCorrectIndex: vi.fn(async () => 2 as const),
       randomInt: vi.fn(() => 0),
     });
 
-    await runSessionEvent(deps, { sessionId, event });
+    await runSessionEvent(deps, {
+      sessionId,
+      // @ts-expect-error runtime payload fields are intentionally exercised at the runner boundary
+      event,
+    });
 
     expect(vi.mocked(deps.commit).mock.calls[0][0].p_engine_state.lifelines.fiftyFifty.removed)
       .toEqual([1, 3]);

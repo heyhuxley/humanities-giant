@@ -17,12 +17,23 @@ import {
   toVoteCounts,
 } from './lifeline-payloads';
 
-export type RevealRequest = Omit<Extract<GameEvent, { type: 'reveal' }>, 'correctIndex'>;
+export type RevealRequest =
+  & Omit<Extract<GameEvent, { type: 'reveal' }>, 'correctIndex'>
+  & { correctIndex?: never };
 type EngineLifeline = Extract<GameEvent, { type: 'use_lifeline' }>['lifeline'];
-export type LifelineRequest = Omit<
-  Extract<GameEvent, { type: 'use_lifeline' }>,
-  'lifeline'
-> & { lifeline: EngineLifeline['lifeline'] };
+export type LifelineRequest =
+  & Omit<
+    Extract<GameEvent, { type: 'use_lifeline' }>,
+    'lifeline'
+  >
+  & { lifeline: EngineLifeline['lifeline'] }
+  & {
+    remove?: never;
+    hint?: never;
+    hintIsCorrect?: never;
+    voteCounts?: never;
+    correctIndex?: never;
+  };
 export type RunnableEvent =
   | Exclude<GameEvent, { type: 'reveal' | 'use_lifeline' }>
   | RevealRequest
@@ -191,6 +202,19 @@ export async function runSessionEvent(
       }
 
       const publicState = toPublicState(newState);
+      if (
+        (
+          newState.status === 'question_active'
+          || newState.status === 'locked'
+        ) && (
+          newState.correctIndex !== null
+          || publicState.correctIndex !== null
+        )
+        || publicState.lifelines.phone.hintIsCorrect !== null
+      ) {
+        console.error('run_session_event_unsafe_state_blocked');
+        return { ok: false, reason: 'unsafe_state' };
+      }
       let currentQuestion: CurrentQuestion | null = null;
 
       if (

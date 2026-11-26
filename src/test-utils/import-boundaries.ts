@@ -190,6 +190,103 @@ export function findAnswerDataFiles(
     .sort();
 }
 
+export function findVotesTableReads(
+  files: { path: string; source: string }[],
+): string[] {
+  const votesTablePattern = /\.from\s*\(\s*(['"`])votes\1\s*\)/g;
+  return files
+    .filter((file) => !isTestFile(file.path) && /\.(?:ts|tsx)$/i.test(file.path))
+    .filter((file) => {
+      votesTablePattern.lastIndex = 0;
+      return votesTablePattern.test(file.source);
+    })
+    .map((file) => normalizedPath(file.path))
+    .sort();
+}
+
+export function isExactVotesRead(source: string): boolean {
+  const exactVotesChain = /\.from\s*\(\s*(['"`])votes\1\s*\)\s*\.select\s*\(\s*(['"`])option_index\2\s*\)\s*\.eq\s*\(\s*(['"`])session_id\3\s*,\s*[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*\)\s*\.eq\s*\(\s*(['"`])position\4\s*,\s*[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*\)\s*;/;
+  return exactVotesChain.test(source);
+}
+
+export function findParticipantIdentifierMatches(source: string): string[] {
+  const matches: string[] = [];
+  if (/\bparticipant_id\b/.test(source)) matches.push('participant_id');
+  if (/\bparticipantId\b/.test(source)) matches.push('participantId');
+  return matches;
+}
+
+export type DynamicFromCall = {
+  filePath: string;
+  line: number;
+  receiver: string;
+  argument: string;
+  excluded: boolean;
+};
+
+export type DynamicFromResult = {
+  hits: DynamicFromCall[];
+  violations: DynamicFromCall[];
+  exclusions: DynamicFromCall[];
+};
+
+function readQuotedArgument(source: string, start: number): { quote: string; end: number } | null {
+  const quote = source[start];
+  if (quote !== "'" && quote !== '"' && quote !== '`') return null;
+
+  for (let index = start + 1; index < source.length; index += 1) {
+    if (quote === '`' && source[index] === '$' && source[index + 1] === '{') return null;
+    if (source[index] === '\\') {
+      index += 1;
+      continue;
+    }
+    if (source[index] === quote) return { quote, end: index + 1 };
+  }
+  return null;
+}
+
+export function findDynamicFromCalls(
+  files: { path: string; source: string }[],
+): DynamicFromResult {
+  const excludedReceivers = new Set(['Array', 'Buffer', 'Uint8Array', 'Object']);
+  const hits: DynamicFromCall[] = [];
+  const violations: DynamicFromCall[] = [];
+  const exclusions: DynamicFromCall[] = [];
+
+  for (const file of files) {
+    if (isTestFile(file.path) || !/\.(?:ts|tsx)$/i.test(file.path)) continue;
+    const pattern = /\.from\s*\(/g;
+    for (const match of file.source.matchAll(pattern)) {
+      const matchIndex = match.index ?? 0;
+      const prefix = file.source.slice(0, matchIndex);
+      const receiverMatch = prefix.match(/([A-Za-z_$][\w$]*)\s*$/);
+      const receiver = receiverMatch?.[1] ?? '<unknown>';
+      const argumentStart = matchIndex + match[0].length;
+      let firstArgumentIndex = argumentStart;
+      while (/[\s]/.test(file.source[firstArgumentIndex] ?? '')) firstArgumentIndex += 1;
+      const remaining = file.source.slice(firstArgumentIndex);
+      const quoted = readQuotedArgument(file.source, firstArgumentIndex);
+      const excluded = excludedReceivers.has(receiver);
+      const line = file.source.slice(0, matchIndex).split('\n').length;
+      const hit: DynamicFromCall = {
+        filePath: normalizedPath(file.path),
+        line,
+        receiver,
+        argument: remaining.slice(0, 80),
+        excluded,
+      };
+      hits.push(hit);
+      if (excluded) {
+        exclusions.push(hit);
+      } else if (quoted === null) {
+        violations.push(hit);
+      }
+    }
+  }
+
+  return { hits, violations, exclusions };
+}
+
 export function checkBoundaries(
   files: { path: string; source: string }[],
 ): { file: string; rule: string; specifier: string }[] {

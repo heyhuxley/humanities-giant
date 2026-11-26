@@ -9,9 +9,13 @@ import {
   findImportsFromDirectories,
   findImportsOfFiles,
   findUnexpectedIdentifierFiles,
+  findDynamicFromCalls,
+  findParticipantIdentifierMatches,
+  findVotesTableReads,
   isActionFile,
   isClientFile,
   isTypeOnlyImport,
+  isExactVotesRead,
   resolveSpecifier,
 } from '../../test-utils/import-boundaries';
 
@@ -310,24 +314,75 @@ describe('session import boundaries', () => {
     ).map((file) => file.path)).toEqual(['src/components/other.tsx']);
   });
 
-  it('limits votes table reads to the session event dependency and one selected column', () => {
+  it('limits votes table reads to the exact session event dependency chain', () => {
+    expect(findVotesTableReads(files)).toEqual([SESSION_EVENT_DEPS]);
     expect(filesReadingVotes(files)).toEqual([SESSION_EVENT_DEPS]);
     const depsFile = files.find((file) => file.path === SESSION_EVENT_DEPS);
     expect(depsFile).toBeDefined();
+    expect(depsFile && isExactVotesRead(depsFile.source)).toBe(true);
     expect(depsFile && selectsOnlyVoteOption(depsFile.source)).toBe(true);
+    expect(depsFile && findParticipantIdentifierMatches(depsFile.source)).toEqual([]);
   });
 
-  it('detects votes table reads and extra selected columns in fake files', () => {
-    const fakeFiles: SourceFile[] = [
-      { path: 'src/lib/sessions/not-allowed.ts', source: "admin.from ( 'votes' ).select('option_index')" },
-      { path: SESSION_EVENT_DEPS, source: "admin.from(`votes`).select('option_index, participant_id')" },
+  it('proves exact and malformed votes chains in fake sources', () => {
+    const id = 'sessionId';
+    const position = 'position';
+    const passing = [
+      `admin.from('votes').select('option_index').eq('session_id', ${id}).eq('position', ${position});`,
+      `admin.from("votes").select("option_index").eq("session_id", ${id}).eq("position", ${position});`,
+      `admin
+        .from("votes")
+        .select("option_index")
+        .eq("session_id", ${id})
+        .eq("position", ${position});`,
     ];
-    expect(filesReadingVotes(fakeFiles)).toEqual([
-      'src/lib/sessions/not-allowed.ts',
+    for (const source of passing) expect(isExactVotesRead(source), source).toBe(true);
+
+    const failing = [
+      `admin.from('votes').select('option_index, participant_id').eq('session_id', ${id}).eq('position', ${position});`,
+      `admin.from('votes').select('*').eq('session_id', ${id}).eq('position', ${position});`,
+      `admin.from("votes").select("*").eq("session_id", ${id}).eq("position", ${position});`,
+      `admin.from(\`votes\`).select(\`*\`).eq("session_id", ${id}).eq("position", ${position});`,
+      `admin.from('votes').select().eq('session_id', ${id}).eq('position', ${position});`,
+      `const selected = 'option_index'; admin.from('votes').select(selected).eq('session_id', ${id}).eq('position', ${position});`,
+      `admin.from('votes').select('option_index').select('option_index').eq('session_id', ${id}).eq('position', ${position});`,
+      `admin.from('votes').select('option_index').eq('session_id', ${id}).eq('position', ${position}).eq('extra', 1);`,
+      `const tableName = 'votes'; admin.from(tableName).select('option_index').eq('session_id', ${id}).eq('position', ${position});`,
+    ];
+    for (const source of failing) expect(isExactVotesRead(source), source).toBe(false);
+
+    const secondRead: SourceFile[] = [
+      { path: SESSION_EVENT_DEPS, source: passing[0] },
+      { path: 'src/lib/sessions/another.ts', source: passing[0] },
+    ];
+    expect(findVotesTableReads(secondRead)).toEqual([
+      'src/lib/sessions/another.ts',
       SESSION_EVENT_DEPS,
     ]);
-    expect(fakeFiles.filter((file) => file.path === SESSION_EVENT_DEPS)
-      .every((file) => selectsOnlyVoteOption(file.source))).toBe(false);
+  });
+
+  it('requires literal table names in every non-test from call', () => {
+    const dynamicResult = findDynamicFromCalls(files);
+    expect(dynamicResult.violations).toEqual([]);
+    expect(dynamicResult.hits.length).toBeGreaterThan(0);
+
+    const fakeFiles: SourceFile[] = [
+      { path: 'src/lib/sessions/literal.ts', source: "admin.from('votes'); admin.from(\"sessions\"); admin.from(`participants`);" },
+      { path: 'src/lib/sessions/dynamic.ts', source: 'const tableName = "votes"; admin.from(tableName); admin.from(`${tableName}`);' },
+      { path: 'src/lib/sessions/excluded.ts', source: 'Array.from([1]); Buffer.from("x"); Uint8Array.from([1]); Object.from([1]);' },
+      { path: 'src/lib/sessions/example.test.ts', source: 'admin.from(tableName);' },
+    ];
+    const fakeResult = findDynamicFromCalls(fakeFiles);
+    expect(fakeResult.violations.map((hit) => hit.filePath)).toEqual([
+      'src/lib/sessions/dynamic.ts',
+      'src/lib/sessions/dynamic.ts',
+    ]);
+    expect(fakeResult.exclusions.map((hit) => hit.receiver).sort()).toEqual([
+      'Array',
+      'Buffer',
+      'Object',
+      'Uint8Array',
+    ]);
   });
 
   it('limits node crypto imports to the exact server source files', () => {

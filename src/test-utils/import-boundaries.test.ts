@@ -7,7 +7,11 @@ import {
   findImportsOfFiles,
   findUnexpectedIdentifierFiles,
   findAnswerDataFiles,
+  findDynamicFromCalls,
+  findParticipantIdentifierMatches,
+  findVotesTableReads,
   isClientFile,
+  isExactVotesRead,
   resolveSpecifier,
 } from './import-boundaries';
 
@@ -92,6 +96,72 @@ describe('isClientFile', () => {
 
   it('does not treat a later string mentioning the directive as a client file', () => {
     expect(isClientFile('const text = "use client";')).toBe(false);
+  });
+});
+
+describe('hardening helpers', () => {
+  it('matches only the exact votes read chain', () => {
+    const sessionId = 'sessionId';
+    const position = 'position';
+    expect(isExactVotesRead(
+      `admin.from('votes').select('option_index').eq('session_id', ${sessionId}).eq('position', ${position});`,
+    )).toBe(true);
+    expect(isExactVotesRead(
+      `admin.from("votes").select("option_index").eq("session_id", ${sessionId}).eq("position", ${position});`,
+    )).toBe(true);
+    expect(isExactVotesRead(
+      `admin
+        .from(\`votes\`)
+        .select(\`option_index\`)
+        .eq(\`session_id\`, ${sessionId})
+        .eq(\`position\`, ${position});`,
+    )).toBe(true);
+
+    const failures = [
+      `admin.from('votes').select('option_index, participant_id').eq('session_id', ${sessionId}).eq('position', ${position});`,
+      `admin.from('votes').select('*').eq('session_id', ${sessionId}).eq('position', ${position});`,
+      `admin.from("votes").select("*").eq("session_id", ${sessionId}).eq("position", ${position});`,
+      `admin.from(\`votes\`).select(\`*\`).eq("session_id", ${sessionId}).eq("position", ${position});`,
+      `admin.from('votes').select().eq('session_id', ${sessionId}).eq('position', ${position});`,
+      `const selected = 'option_index'; admin.from('votes').select(selected).eq('session_id', ${sessionId}).eq('position', ${position});`,
+      `admin.from('votes').select('option_index').select('option_index').eq('session_id', ${sessionId}).eq('position', ${position});`,
+      `admin.from('votes').select('option_index').eq('session_id', ${sessionId}).eq('position', ${position}).eq('extra', 1);`,
+      `const tableName = 'votes'; admin.from(tableName).select('option_index').eq('session_id', ${sessionId}).eq('position', ${position});`,
+    ];
+    for (const source of failures) expect(isExactVotesRead(source), source).toBe(false);
+  });
+
+  it('counts exact votes reads and rejects participant identifier text', () => {
+    const chain = "admin.from('votes').select('option_index').eq('session_id', sessionId).eq('position', position);";
+    expect(findVotesTableReads([
+      { path: 'src/lib/sessions/session-event-deps.ts', source: chain },
+      { path: 'src/lib/sessions/other.ts', source: chain },
+      { path: 'src/lib/sessions/session-event-deps.test.ts', source: chain },
+    ])).toEqual([
+      'src/lib/sessions/other.ts',
+      'src/lib/sessions/session-event-deps.ts',
+    ]);
+    expect(findParticipantIdentifierMatches('const participant_id = 1; const participantId = 2;'))
+      .toEqual(['participant_id', 'participantId']);
+  });
+
+  it('detects dynamic from calls and excludes only the named receivers', () => {
+    const result = findDynamicFromCalls([
+      { path: 'src/lib/sessions/literals.ts', source: "admin.from('sessions'); admin.from(`participants`);" },
+      { path: 'src/lib/sessions/dynamic.ts', source: 'admin.from(tableName); admin.from(`${tableName}`);' },
+      { path: 'src/lib/sessions/excluded.ts', source: 'Array.from([1]); Buffer.from("x"); Uint8Array.from([1]); Object.from([1]);' },
+      { path: 'src/lib/sessions/example.test.ts', source: 'admin.from(tableName);' },
+    ]);
+    expect(result.violations.map((hit) => hit.filePath)).toEqual([
+      'src/lib/sessions/dynamic.ts',
+      'src/lib/sessions/dynamic.ts',
+    ]);
+    expect(result.exclusions.map((hit) => hit.receiver).sort()).toEqual([
+      'Array',
+      'Buffer',
+      'Object',
+      'Uint8Array',
+    ]);
   });
 });
 
