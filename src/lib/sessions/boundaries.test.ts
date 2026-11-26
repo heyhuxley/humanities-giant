@@ -91,6 +91,27 @@ const LIFELINE_FORBIDDEN_TEXT = [
   ['Math', '.', 'random'].join(''),
   ['Date', '.', 'now'].join(''),
 ];
+const LIFELINE_RESULTS_FORBIDDEN_TEXT = [
+  ['correct', '_index'].join(''),
+  ['question', '_answers'].join(''),
+  ['session', '_private'].join(''),
+  'participant',
+];
+const LIFELINE_RESULTS_PATHS = [
+  'src/lib/sessions/lifeline-view.ts',
+  'src/components/lifeline-results.tsx',
+];
+
+function playerHintIdentifierFiles(filesToCheck: SourceFile[]): string[] {
+  const playerSources = filesToCheck.filter((file) =>
+    file.path.startsWith('src/app/play/') ||
+    file.path.startsWith('src/components/') ||
+    file.path === 'src/lib/sessions/read-public-state.ts' ||
+    file.path === 'src/lib/sessions/lifeline-view.ts' ||
+    file.path === 'src/components/lifeline-results.tsx',
+  );
+  return findIdentifierFiles(playerSources, 'hintIsCorrect');
+}
 
 function sourceFiles(directory: string): SourceFile[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -134,12 +155,17 @@ function filesWithDatabaseAnswerColumn(files: SourceFile[]): string[] {
 function lifelineForbiddenImports(filesToCheck: SourceFile[]): string[] {
   const forbiddenModules = [
     'react',
+    'react-dom/server',
+    'react-server-dom-webpack',
     'next',
     '@supabase/supabase-js',
     'server-only',
     'node:crypto',
     'src/lib/supabase',
     'src/app',
+    'src/game/apply-event',
+    'src/game/index',
+    'src/lib/sessions/run-session-event',
   ];
 
   return filesToCheck.flatMap((file) =>
@@ -749,6 +775,70 @@ describe('session import boundaries', () => {
 
   it('keeps lifeline results out of player facing source', () => {
     expect(findForbiddenPlayerLifelineFields(files)).toEqual([]);
+  });
+
+  it('keeps the private phone correctness field out of fake and scanned player sources', () => {
+    const fakeFiles: SourceFile[] = [
+      { path: 'src/app/play/fake.tsx', source: 'const hintIsCorrect = true;' },
+      { path: 'src/components/fake.tsx', source: 'value.hintIsCorrect' },
+      { path: 'src/lib/sessions/read-public-state.ts', source: 'hintIsCorrect: true' },
+      { path: 'src/lib/sessions/lifeline-view.ts', source: 'value.hintIsCorrect' },
+      { path: 'src/components/lifeline-results.tsx', source: 'hintIsCorrect: null' },
+      { path: 'src/app/play/fake.test.tsx', source: 'hintIsCorrect: true' },
+    ];
+
+    expect(playerHintIdentifierFiles(fakeFiles)).toEqual([
+      'src/app/play/fake.tsx',
+      'src/components/fake.tsx',
+      'src/components/lifeline-results.tsx',
+      'src/lib/sessions/lifeline-view.ts',
+      'src/lib/sessions/read-public-state.ts',
+    ]);
+    expect(playerHintIdentifierFiles(files)).toEqual([]);
+  });
+
+  it('keeps the result view imports and data free of private server dependencies', () => {
+    const fakeFiles: SourceFile[] = [
+      {
+        path: 'src/lib/sessions/lifeline-view.ts',
+        source: [
+          "import 'server-only';",
+          "import '@/lib/supabase/admin';",
+          "import '../../game/apply-event';",
+          "import 'react-dom/server';",
+        ].join('\n'),
+      },
+      {
+        path: 'src/components/lifeline-results.tsx',
+        source: [
+          "import 'next/server';",
+          "import '@supabase/supabase-js';",
+          "import '../game/apply-event';",
+          "const privateFields = ['correct_index', 'question_answers', 'session_private', 'participant'];",
+        ].join('\n'),
+      },
+    ];
+    const realFiles = files.filter((file) => LIFELINE_RESULTS_PATHS.includes(file.path));
+    expect(realFiles.map((file) => file.path).sort()).toEqual(
+      [...LIFELINE_RESULTS_PATHS].sort(),
+    );
+    expect(lifelineForbiddenImports(fakeFiles)).toHaveLength(7);
+    expect(lifelineForbiddenImports(realFiles)).toEqual([]);
+
+    const fakeResults = fakeFiles.find((file) =>
+      file.path === 'src/components/lifeline-results.tsx',
+    );
+    const realResults = realFiles.find((file) =>
+      file.path === 'src/components/lifeline-results.tsx',
+    );
+    expect(fakeResults).toBeDefined();
+    expect(realResults).toBeDefined();
+    expect(LIFELINE_RESULTS_FORBIDDEN_TEXT.filter((text) =>
+      fakeResults?.source.toLowerCase().includes(text),
+    )).toEqual(LIFELINE_RESULTS_FORBIDDEN_TEXT);
+    expect(LIFELINE_RESULTS_FORBIDDEN_TEXT.filter((text) =>
+      realResults?.source.toLowerCase().includes(text),
+    )).toEqual([]);
   });
 
   it('keeps useLifelineAction only in play actions', () => {

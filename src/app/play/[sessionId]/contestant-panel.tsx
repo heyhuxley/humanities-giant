@@ -2,7 +2,10 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import type { Option } from '../../../game/types';
+import { LifelineResults } from '../../../components/lifeline-results';
 import { formatNaira } from '../../../lib/sessions/ladder-view';
+import { optionAvailability } from '../../../lib/sessions/lifeline-view';
+import type { PublicLifelines } from '../../../lib/sessions/read-public-state';
 import { describeResult, optionStates } from '../../../lib/sessions/reveal-view';
 
 type PlayerActionState = { error: string | null };
@@ -23,11 +26,7 @@ type Props = Readonly<{
   lastResult: 'correct' | 'wrong' | 'timeout' | null;
   status: string;
   open: boolean;
-  lifelines: {
-    fiftyFifty: { used: boolean; usedAtPosition: number | null };
-    phone: { used: boolean; usedAtPosition: number | null };
-    audience: { used: boolean; usedAtPosition: number | null };
-  };
+  lifelines: PublicLifelines;
   submitAction: (
     prev: PlayerActionState,
     formData: FormData,
@@ -63,6 +62,9 @@ export function ContestantPanel({
   const [confirming, setConfirming] = useState(false);
   const [selectedLifeline, setSelectedLifeline] = useState<LifelineChoice | null>(null);
   const [locallyExpired, setLocallyExpired] = useState(false);
+  const [previousRemovedOptionsKey, setPreviousRemovedOptionsKey] = useState(
+    lifelines.fiftyFifty.removed?.join(',') ?? '',
+  );
   const [actionState, formAction, pending] = useActionState(submitAnswer, {
     error: null,
   });
@@ -70,6 +72,16 @@ export function ContestantPanel({
     submitLifeline,
     { error: null },
   );
+  const availableOptions = optionAvailability(lifelines.fiftyFifty.removed);
+  const removedOptionsKey = lifelines.fiftyFifty.removed?.join(',') ?? '';
+
+  if (previousRemovedOptionsKey !== removedOptionsKey) {
+    setPreviousRemovedOptionsKey(removedOptionsKey);
+    if (tentative !== null && !availableOptions[tentative]) {
+      setTentative(null);
+      setConfirming(false);
+    }
+  }
 
   async function submitAnswer(
     _previous: PlayerActionState,
@@ -117,6 +129,7 @@ export function ContestantPanel({
         </p>
       ) : null}
       <h2 className="text-lg font-semibold">{question.text}</h2>
+      <LifelineResults lifelines={lifelines} />
       {selectedLifeline === null ? (
         <div className="grid grid-cols-3 gap-2">
           {LIFELINE_CHOICES.map((choice) => {
@@ -188,11 +201,16 @@ export function ContestantPanel({
           const optionIndex = index as Option;
           const selected = tentative === optionIndex;
           const optionState = states[optionIndex];
+          const available = availableOptions[optionIndex];
+          const removedLabelApplies =
+            !available &&
+            optionState.state !== 'correct' &&
+            optionState.state !== 'wrong';
           return (
             <button
               key={optionIndex}
               type="button"
-              disabled={disabled}
+              disabled={disabled || !available}
               onClick={() => {
                 setTentative(optionIndex);
                 setConfirming(false);
@@ -202,6 +220,8 @@ export function ContestantPanel({
                   ? 'border-green-700 bg-green-100 font-semibold'
                   : optionState.state === 'wrong'
                     ? 'border-red-700 bg-red-100 font-semibold'
+                    : !available
+                      ? 'border-stone-400 bg-stone-100 text-stone-500'
                     : optionState.state === 'locked'
                       ? 'border-amber-700 bg-amber-100 font-semibold'
                       : selected
@@ -214,7 +234,13 @@ export function ContestantPanel({
               {optionState.icon ? (
                 <span aria-hidden="true" className="ml-2">{optionState.icon}</span>
               ) : null}
+              {removedLabelApplies ? (
+                <span aria-hidden="true" className="ml-2">✗</span>
+              ) : null}
               {optionState.label ? <span className="ml-1 font-semibold">{optionState.label}</span> : null}
+              {removedLabelApplies ? (
+                <span className="ml-1 font-semibold">Removed</span>
+              ) : null}
             </button>
           );
         })}

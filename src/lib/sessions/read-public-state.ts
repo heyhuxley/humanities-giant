@@ -22,9 +22,12 @@ export type PublicLifelineUsage = {
 };
 
 export type PublicLifelines = {
-  fiftyFifty: PublicLifelineUsage;
-  phone: PublicLifelineUsage;
-  audience: PublicLifelineUsage;
+  fiftyFifty: PublicLifelineUsage & { removed: [Option, Option] | null };
+  phone: PublicLifelineUsage & { hint: Option | null };
+  audience: PublicLifelineUsage & {
+    percentages: [number, number, number, number] | null;
+    notEnoughVotes: boolean;
+  };
 };
 
 export type SafePublicState = {
@@ -89,18 +92,110 @@ function readLifelineUsage(value: unknown): PublicLifelineUsage {
   };
 }
 
-function readLifelines(value: unknown): PublicLifelines {
+function readOption(value: unknown): Option | null {
+  return isLockedAnswer(value) ? value : null;
+}
+
+function readRemovedOptions(value: unknown): [Option, Option] | null {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 2 ||
+    !isLockedAnswer(value[0]) ||
+    !isLockedAnswer(value[1]) ||
+    value[0] === value[1]
+  ) {
+    return null;
+  }
+  return value[0] < value[1] ? [value[0], value[1]] : [value[1], value[0]];
+}
+
+function readAudiencePercentages(value: unknown): [number, number, number, number] | null {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 4 ||
+    value.some((percentage) =>
+      typeof percentage !== 'number' ||
+      !Number.isInteger(percentage) ||
+      percentage < 0 ||
+      percentage > 100)
+  ) {
+    return null;
+  }
+
+  const percentages: [number, number, number, number] = [
+    value[0],
+    value[1],
+    value[2],
+    value[3],
+  ];
+  return percentages.reduce((total, percentage) => total + percentage, 0) === 100
+    ? percentages
+    : null;
+}
+
+function resultApplies(
+  usage: PublicLifelineUsage,
+  position: number | null,
+  status: PublicStatus,
+): boolean {
+  return (
+    usage.used &&
+    position !== null &&
+    usage.usedAtPosition === position &&
+    status !== 'waiting'
+  );
+}
+
+function readLifelines(
+  value: unknown,
+  position: number | null,
+  status: PublicStatus,
+): PublicLifelines {
+  const resultIsAvailable =
+    status === 'question_active' ||
+    status === 'locked' ||
+    status === 'revealed' ||
+    status === 'finished';
   if (!isRecord(value)) {
     return {
-      fiftyFifty: readLifelineUsage(null),
-      phone: readLifelineUsage(null),
-      audience: readLifelineUsage(null),
+      fiftyFifty: { ...readLifelineUsage(null), removed: null },
+      phone: { ...readLifelineUsage(null), hint: null },
+      audience: {
+        ...readLifelineUsage(null),
+        percentages: null,
+        notEnoughVotes: false,
+      },
     };
   }
+  const fiftyFifty = readLifelineUsage(value.fiftyFifty);
+  const phone = readLifelineUsage(value.phone);
+  const audience = readLifelineUsage(value.audience);
+  const fiftyFiftyApplies = resultIsAvailable && resultApplies(fiftyFifty, position, status);
+  const phoneApplies = resultIsAvailable && resultApplies(phone, position, status);
+  const audienceApplies = resultIsAvailable && resultApplies(audience, position, status);
+
+  const fiftyFiftyResult = isRecord(value.fiftyFifty) ? value.fiftyFifty : null;
+  const phoneResult = isRecord(value.phone) ? value.phone : null;
+  const audienceResult = isRecord(value.audience) ? value.audience : null;
+
   return {
-    fiftyFifty: readLifelineUsage(value.fiftyFifty),
-    phone: readLifelineUsage(value.phone),
-    audience: readLifelineUsage(value.audience),
+    fiftyFifty: {
+      ...fiftyFifty,
+      removed: fiftyFiftyApplies
+        ? readRemovedOptions(fiftyFiftyResult?.removed)
+        : null,
+    },
+    phone: {
+      ...phone,
+      hint: phoneApplies ? readOption(phoneResult?.hint) : null,
+    },
+    audience: {
+      ...audience,
+      percentages: audienceApplies
+        ? readAudiencePercentages(audienceResult?.percentages)
+        : null,
+      notEnoughVotes: audienceApplies && audienceResult?.notEnoughVotes === true,
+    },
   };
 }
 
@@ -154,7 +249,7 @@ export function readPublicState(value: unknown): SafePublicState | null {
     lockedAnswer,
     correctIndex,
     lastResult,
-    lifelines: readLifelines(value.lifelines),
+    lifelines: readLifelines(value.lifelines, position, value.status),
   };
 }
 

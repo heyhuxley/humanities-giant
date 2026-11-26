@@ -208,6 +208,7 @@ export default async function PlayPage({
                   lastResult={publicState.lastResult}
                   status={publicState.status}
                   open={publicState.status === 'question_active'}
+                  lifelines={publicState.lifelines}
                   voteAction={castVoteAction}
                 />
               )}

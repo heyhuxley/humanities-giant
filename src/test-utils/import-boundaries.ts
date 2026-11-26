@@ -87,10 +87,33 @@ export function findForbiddenPlayerLifelineFields(
   ];
   const checkedPaths = [
     'src/lib/sessions/read-public-state.ts',
+    'src/lib/sessions/lifeline-view.ts',
     'src/lib/sessions/player-flows.ts',
     'src/lib/sessions/player-forms.ts',
     'src/lib/sessions/player-messages.ts',
   ];
+  const allowedFieldsByPath: Record<string, readonly string[]> = {
+    'src/app/play/[sessionId]/contestant-panel.tsx': ['removed'],
+    'src/app/play/[sessionId]/audience-panel.tsx': ['removed'],
+    'src/components/lifeline-results.tsx': [
+      'removed',
+      'hint',
+      'percentages',
+      'notEnoughVotes',
+    ],
+    'src/lib/sessions/lifeline-view.ts': [
+      'removed',
+      'hint',
+      'percentages',
+      'notEnoughVotes',
+    ],
+    'src/lib/sessions/read-public-state.ts': [
+      'removed',
+      'hint',
+      'percentages',
+      'notEnoughVotes',
+    ],
+  };
 
   return files
     .filter((file) => !isTestFile(file.path) && /\.(?:ts|tsx)$/i.test(file.path))
@@ -99,8 +122,11 @@ export function findForbiddenPlayerLifelineFields(
       isUnder(normalizedPath(file.path), 'src/components') ||
       checkedPaths.includes(normalizedPath(file.path)),
     )
-    .flatMap((file) => fieldNames
+    .flatMap((file) => {
+      const filePath = normalizedPath(file.path);
+      return fieldNames
       .filter((fieldName) => {
+        if (allowedFieldsByPath[filePath]?.includes(fieldName)) return false;
         const escaped = escapeRegExp(fieldName);
         const fieldPattern = new RegExp(
           `(?:\\.\\s*${escaped}\\b|\\b${escaped}\\s*\\??\\s*:|` +
@@ -109,7 +135,8 @@ export function findForbiddenPlayerLifelineFields(
         );
         return fieldPattern.test(file.source);
       })
-      .map((fieldName) => `${normalizedPath(file.path)}:${fieldName}`))
+      .map((fieldName) => `${filePath}:${fieldName}`);
+    })
     .sort();
 }
 

@@ -2,7 +2,10 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import type { Option } from '../../../game/types';
+import { LifelineResults } from '../../../components/lifeline-results';
 import { formatNaira } from '../../../lib/sessions/ladder-view';
+import { optionAvailability } from '../../../lib/sessions/lifeline-view';
+import type { PublicLifelines } from '../../../lib/sessions/read-public-state';
 import { describeResult, optionStates } from '../../../lib/sessions/reveal-view';
 
 type PlayerActionState = { error: string | null };
@@ -17,6 +20,7 @@ type Props = Readonly<{
   lastResult: 'correct' | 'wrong' | 'timeout' | null;
   status: string;
   open: boolean;
+  lifelines: PublicLifelines;
   voteAction: (
     prev: PlayerActionState,
     formData: FormData,
@@ -35,10 +39,12 @@ export function AudiencePanel({
   lastResult,
   status,
   open,
+  lifelines,
   voteAction,
 }: Props) {
   const [votedOption, setVotedOption] = useState<Option | null>(null);
   const [locallyExpired, setLocallyExpired] = useState(false);
+  const availableOptions = optionAvailability(lifelines.fiftyFifty.removed);
   const [actionState, formAction, pending] = useActionState(voteAction, {
     error: null,
   });
@@ -72,25 +78,33 @@ export function AudiencePanel({
         </p>
       ) : null}
       <h2 className="text-lg font-semibold">{question.text}</h2>
+      <LifelineResults lifelines={lifelines} />
       <form action={formAction} className="grid gap-2">
         <input type="hidden" name="sessionId" value={sessionId} />
         {question.options.map((option, index) => {
           const optionIndex = index as Option;
           const chosen = votedOption === optionIndex;
           const optionState = states[optionIndex];
+          const available = availableOptions[optionIndex];
+          const removedLabelApplies =
+            !available &&
+            optionState.state !== 'correct' &&
+            optionState.state !== 'wrong';
           return (
             <button
               key={optionIndex}
               type="submit"
               name="option"
               value={optionIndex}
-              disabled={disabled}
+              disabled={disabled || !available}
               onClick={() => setVotedOption(optionIndex)}
               className={`min-h-11 rounded-lg border px-3 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
                 optionState.state === 'correct'
                   ? 'border-green-700 bg-green-100 font-semibold'
                   : optionState.state === 'wrong'
                     ? 'border-red-700 bg-red-100 font-semibold'
+                    : !available
+                      ? 'border-stone-400 bg-stone-100 text-stone-500'
                     : optionState.state === 'locked'
                       ? 'border-amber-700 bg-amber-100 font-semibold'
                       : chosen
@@ -103,7 +117,13 @@ export function AudiencePanel({
               {optionState.icon ? (
                 <span aria-hidden="true" className="ml-2">{optionState.icon}</span>
               ) : null}
+              {removedLabelApplies ? (
+                <span aria-hidden="true" className="ml-2">✗</span>
+              ) : null}
               {optionState.label ? <span className="ml-1 font-semibold">{optionState.label}</span> : null}
+              {removedLabelApplies ? (
+                <span className="ml-1 font-semibold">Removed</span>
+              ) : null}
               {chosen ? (
                 <span className="ml-2 font-semibold">Your vote</span>
               ) : null}

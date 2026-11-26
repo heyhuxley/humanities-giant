@@ -2,10 +2,29 @@ import { describe, expect, it } from 'vitest';
 import { readCurrentQuestion, readPublicState } from './read-public-state';
 
 const UNUSED_LIFELINES = {
-  fiftyFifty: { used: false, usedAtPosition: null },
-  phone: { used: false, usedAtPosition: null },
-  audience: { used: false, usedAtPosition: null },
+  fiftyFifty: { used: false, usedAtPosition: null, removed: null },
+  phone: { used: false, usedAtPosition: null, hint: null },
+  audience: {
+    used: false,
+    usedAtPosition: null,
+    percentages: null,
+    notEnoughVotes: false,
+  },
 };
+
+function readLifelines(
+  status: 'waiting' | 'question_active' | 'locked' | 'revealed' | 'finished',
+  position: number | null,
+  lifelines: unknown,
+) {
+  return readPublicState({
+    status,
+    winnings: null,
+    finishReason: null,
+    position,
+    lifelines,
+  })?.lifelines;
+}
 
 describe('readPublicState', () => {
   it('reads a valid waiting state', () => {
@@ -107,6 +126,7 @@ describe('readPublicState', () => {
       status: 'question_active',
       winnings: null,
       finishReason: null,
+      position: 3,
       lifelines: {
         fiftyFifty: { used: true, usedAtPosition: 2, removed: [0, 1] },
         phone: { used: true, usedAtPosition: 5, hint: 2, hintIsCorrect: true },
@@ -118,9 +138,14 @@ describe('readPublicState', () => {
         },
       },
     })?.lifelines).toEqual({
-      fiftyFifty: { used: true, usedAtPosition: 2 },
-      phone: { used: true, usedAtPosition: 5 },
-      audience: { used: true, usedAtPosition: 10 },
+      fiftyFifty: { used: true, usedAtPosition: 2, removed: null },
+      phone: { used: true, usedAtPosition: 5, hint: null },
+      audience: {
+        used: true,
+        usedAtPosition: 10,
+        percentages: null,
+        notEnoughVotes: false,
+      },
     });
   });
 
@@ -135,9 +160,14 @@ describe('readPublicState', () => {
         audience: { used: true, usedAtPosition: 15 },
       },
     })?.lifelines).toEqual({
-      fiftyFifty: { used: true, usedAtPosition: 1 },
-      phone: { used: false, usedAtPosition: null },
-      audience: { used: true, usedAtPosition: 15 },
+      fiftyFifty: { used: true, usedAtPosition: 1, removed: null },
+      phone: { used: false, usedAtPosition: null, hint: null },
+      audience: {
+        used: true,
+        usedAtPosition: 15,
+        percentages: null,
+        notEnoughVotes: false,
+      },
     });
   });
 
@@ -149,7 +179,11 @@ describe('readPublicState', () => {
       lifelines: {
         fiftyFifty: { used, usedAtPosition: 3 },
       },
-    })?.lifelines.fiftyFifty).toEqual({ used: false, usedAtPosition: 3 });
+    })?.lifelines.fiftyFifty).toEqual({
+      used: false,
+      usedAtPosition: 3,
+      removed: null,
+    });
   });
 
   it.each([0, 16, 1.5, '3'])(
@@ -162,7 +196,11 @@ describe('readPublicState', () => {
         lifelines: {
           fiftyFifty: { used: true, usedAtPosition },
         },
-      })?.lifelines.fiftyFifty).toEqual({ used: true, usedAtPosition: null });
+      })?.lifelines.fiftyFifty).toEqual({
+        used: true,
+        usedAtPosition: null,
+        removed: null,
+      });
     },
   );
 
@@ -178,26 +216,149 @@ describe('readPublicState', () => {
     },
   );
 
-  it('never returns stored lifeline results', () => {
-    const result = readPublicState({
-      status: 'question_active',
-      winnings: null,
-      finishReason: null,
-      lifelines: {
-        fiftyFifty: { used: true, usedAtPosition: 3, removed: [0, 2] },
-        phone: { used: true, usedAtPosition: 4, hint: 1, hintIsCorrect: true },
-        audience: {
-          used: true,
-          usedAtPosition: 5,
-          percentages: [10, 20, 30, 40],
-          notEnoughVotes: true,
-        },
+  it('returns each current lifeline result without returning extra fields', () => {
+    const result = readLifelines('question_active', 5, {
+      fiftyFifty: { used: true, usedAtPosition: 5, removed: [3, 1], extra: 'ignored' },
+      phone: { used: true, usedAtPosition: 5, hint: 2, hintIsCorrect: true, extra: 'ignored' },
+      audience: {
+        used: true,
+        usedAtPosition: 5,
+        percentages: [10, 20, 30, 40],
+        notEnoughVotes: true,
+        extra: 'ignored',
       },
     });
-    const serialized = JSON.stringify(result);
-    for (const key of ['removed', 'hint', 'hintIsCorrect', 'percentages', 'notEnoughVotes']) {
-      expect(serialized).not.toContain(key);
-    }
+
+    expect(result).toEqual({
+      fiftyFifty: { used: true, usedAtPosition: 5, removed: [1, 3] },
+      phone: { used: true, usedAtPosition: 5, hint: 2 },
+      audience: {
+        used: true,
+        usedAtPosition: 5,
+        percentages: [10, 20, 30, 40],
+        notEnoughVotes: true,
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('hintIsCorrect');
+    expect(JSON.stringify(result)).not.toContain('extra');
+  });
+
+  it.each(['question_active', 'locked', 'revealed', 'finished'] as const)(
+    'returns applicable results in %s',
+    (status) => {
+      expect(readLifelines(status, 4, {
+        fiftyFifty: { used: true, usedAtPosition: 4, removed: [0, 3] },
+        phone: { used: true, usedAtPosition: 4, hint: 1 },
+        audience: {
+          used: true,
+          usedAtPosition: 4,
+          percentages: [25, 25, 25, 25],
+          notEnoughVotes: false,
+        },
+      })).toEqual({
+        fiftyFifty: { used: true, usedAtPosition: 4, removed: [0, 3] },
+        phone: { used: true, usedAtPosition: 4, hint: 1 },
+        audience: {
+          used: true,
+          usedAtPosition: 4,
+          percentages: [25, 25, 25, 25],
+          notEnoughVotes: false,
+        },
+      });
+    },
+  );
+
+  it.each([
+    ['earlier position', 'question_active', 5, 4],
+    ['different position', 'question_active', 5, 6],
+    ['waiting state', 'waiting', null, 1],
+  ] as const)(
+    'hides results when they do not apply at the %s',
+    (_description, status, position, usedAtPosition) => {
+      expect(readLifelines(status, position, {
+        fiftyFifty: { used: true, usedAtPosition, removed: [0, 1] },
+        phone: { used: true, usedAtPosition, hint: 2 },
+        audience: {
+          used: true,
+          usedAtPosition,
+          percentages: [25, 25, 25, 25],
+          notEnoughVotes: true,
+        },
+      })).toEqual({
+        fiftyFifty: { used: true, usedAtPosition, removed: null },
+        phone: { used: true, usedAtPosition, hint: null },
+        audience: {
+          used: true,
+          usedAtPosition,
+          percentages: null,
+          notEnoughVotes: false,
+        },
+      });
+    },
+  );
+
+  it('hides results when the lifeline is unused', () => {
+    expect(readLifelines('question_active', 2, {
+      fiftyFifty: { used: false, usedAtPosition: 2, removed: [0, 1] },
+      phone: { used: false, usedAtPosition: 2, hint: 2 },
+      audience: {
+        used: false,
+        usedAtPosition: 2,
+        percentages: [25, 25, 25, 25],
+        notEnoughVotes: true,
+      },
+    })).toEqual({
+      fiftyFifty: { used: false, usedAtPosition: 2, removed: null },
+      phone: { used: false, usedAtPosition: 2, hint: null },
+      audience: {
+        used: false,
+        usedAtPosition: 2,
+        percentages: null,
+        notEnoughVotes: false,
+      },
+    });
+  });
+
+  it.each([
+    [[0, 0]],
+    [[0, 4]],
+    [[-1, 2]],
+    [[0, 1, 2]],
+    [[0, 1.5]],
+  ])('returns null for malformed removed options %s', (removed) => {
+    expect(readLifelines('question_active', 2, {
+      fiftyFifty: { used: true, usedAtPosition: 2, removed },
+    })?.fiftyFifty.removed).toBeNull();
+  });
+
+  it.each([4, -1, '2', 1.5])('returns null for malformed phone hint %s', (hint) => {
+    expect(readLifelines('question_active', 2, {
+      phone: { used: true, usedAtPosition: 2, hint },
+    })?.phone.hint).toBeNull();
+  });
+
+  it.each([
+    [[25, 25, 25, 24]],
+    [[25, 25, 25, 26]],
+    [[101, 0, 0, 0]],
+    [[-1, 34, 33, 34]],
+    [[25, 25, 25]],
+    [[25, 25, 25, 24.5]],
+  ])('returns null for malformed audience percentages %s', (percentages) => {
+    expect(readLifelines('question_active', 2, {
+      audience: { used: true, usedAtPosition: 2, percentages },
+    })?.audience.percentages).toBeNull();
+  });
+
+  it('returns false for a non boolean not enough votes value', () => {
+    expect(readLifelines('question_active', 2, {
+      audience: {
+        used: true,
+        usedAtPosition: 2,
+        percentages: null,
+        notEnoughVotes: 'true',
+      },
+    })?.audience.notEnoughVotes).toBe(false);
   });
 
   it('reads a valid locked answer', () => {

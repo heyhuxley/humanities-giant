@@ -106,6 +106,8 @@ describe('hardening helpers', () => {
       { path: 'src/app/play/unsafe.tsx', source: 'state.hintIsCorrect' },
       { path: 'src/components/unsafe.tsx', source: 'const { removed } = state;' },
       { path: 'src/lib/sessions/read-public-state.ts', source: 'const value = { percentages: [] };' },
+      { path: 'src/lib/sessions/lifeline-view.ts', source: 'const hint = value.hint;' },
+      { path: 'src/components/lifeline-results.tsx', source: 'const value = { notEnoughVotes: true };' },
       { path: 'src/lib/sessions/player-flows.ts', source: "const value = { 'hint': 1 };" },
       { path: 'src/lib/sessions/player-forms.ts', source: 'const key = ["voteCounts"];' },
       { path: 'src/lib/sessions/player-messages.ts', source: 'const value = { notEnoughVotes: true };' },
@@ -120,7 +122,6 @@ describe('hardening helpers', () => {
       'src/lib/sessions/player-flows.ts:hint',
       'src/lib/sessions/player-forms.ts:voteCounts',
       'src/lib/sessions/player-messages.ts:notEnoughVotes',
-      'src/lib/sessions/read-public-state.ts:percentages',
     ]);
   });
 
