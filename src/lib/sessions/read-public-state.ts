@@ -1,5 +1,5 @@
 import { MONEY_LADDER } from '../../game/constants';
-import type { Option } from '../../game/types';
+import type { LastResult, Option } from '../../game/types';
 import type { CurrentQuestion } from './current-question';
 
 export type PublicStatus =
@@ -25,6 +25,8 @@ export type SafePublicState = {
   questionEndsAt: number | null;
   contestantId: string | null;
   lockedAnswer: Option | null;
+  correctIndex: Option | null;
+  lastResult: LastResult;
 };
 
 const STATUSES: ReadonlySet<PublicStatus> = new Set([
@@ -63,6 +65,10 @@ function isLockedAnswer(value: unknown): value is Option {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 3;
 }
 
+function isLastResult(value: unknown): value is Exclude<LastResult, null> {
+  return value === 'correct' || value === 'wrong' || value === 'timeout';
+}
+
 export function readPublicState(value: unknown): SafePublicState | null {
   if (!isRecord(value) || !isPublicStatus(value.status)) return null;
   if (
@@ -96,6 +102,11 @@ export function readPublicState(value: unknown): SafePublicState | null {
       : null;
   const lockedAnswer =
     questionInProgress && isLockedAnswer(value.lockedAnswer) ? value.lockedAnswer : null;
+  const revealAvailable = value.status === 'revealed' || value.status === 'finished';
+  const correctIndex =
+    revealAvailable && isLockedAnswer(value.correctIndex) ? value.correctIndex : null;
+  const lastResult =
+    revealAvailable && isLastResult(value.lastResult) ? value.lastResult : null;
 
   return {
     status: value.status,
@@ -106,6 +117,8 @@ export function readPublicState(value: unknown): SafePublicState | null {
     questionEndsAt,
     contestantId,
     lockedAnswer,
+    correctIndex,
+    lastResult,
   };
 }
 

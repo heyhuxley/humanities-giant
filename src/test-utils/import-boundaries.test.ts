@@ -2,10 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   checkBoundaries,
   extractImports,
+  findIdentifierFiles,
+  findImportsFromDirectories,
+  findImportsOfFiles,
+  findUnexpectedIdentifierFiles,
   findAnswerDataFiles,
   isClientFile,
   resolveSpecifier,
 } from './import-boundaries';
+
+const DATABASE_ANSWER_COLUMN = 'correct' + '_index';
 
 const PAGE = 'src/app/host/sessions/[id]/page.tsx';
 const CLIENT = 'src/app/host/sessions/[id]/session-controls.tsx';
@@ -90,6 +96,79 @@ describe('isClientFile', () => {
 });
 
 describe('checkBoundaries', () => {
+  it('scans exact identifier names and exempts test files by filename ending', () => {
+    const identifier = ['correct', 'Index'].join('');
+    const sources = [
+      { path: 'src/game/types.ts', source: `export type Value = { ${identifier}: number };` },
+      { path: 'src/lib/example.test.ts', source: `const ${identifier} = 1;` },
+    ];
+
+    expect(findIdentifierFiles(sources, identifier)).toEqual(['src/game/types.ts']);
+    expect(findUnexpectedIdentifierFiles(sources, identifier, ['src/game/types.ts'])).toEqual([]);
+    expect(findUnexpectedIdentifierFiles(sources, identifier, [])).toEqual(['src/game/types.ts']);
+  });
+
+  it('finds imports from restricted directories through aliases and relative paths', () => {
+    const sources = [
+      {
+        path: 'src/app/play/[sessionId]/page.tsx',
+        source: "import '@/app/host/sessions/actions'; import '@/lib/questions/validate';",
+      },
+      {
+        path: 'src/app/join/join-form.tsx',
+        source: "import '../host/questions/actions';",
+      },
+      {
+        path: 'src/components/player.tsx',
+        source: "import '../app/host/questions/question-form'; import '../lib/questions/form-data';",
+      },
+    ];
+
+    expect(findImportsFromDirectories(
+      sources,
+      ['src/app/play', 'src/app/join', 'src/components'],
+      ['src/app/host', 'src/lib/questions'],
+    )).toEqual([
+      { filePath: 'src/app/play/[sessionId]/page.tsx', importedPath: 'src/app/host/sessions/actions' },
+      { filePath: 'src/app/play/[sessionId]/page.tsx', importedPath: 'src/lib/questions/validate' },
+      { filePath: 'src/app/join/join-form.tsx', importedPath: 'src/app/host/questions/actions' },
+      { filePath: 'src/components/player.tsx', importedPath: 'src/app/host/questions/question-form' },
+      { filePath: 'src/components/player.tsx', importedPath: 'src/lib/questions/form-data' },
+    ]);
+  });
+
+  it('finds imports of exact question authoring files in restricted directories', () => {
+    const sources = [
+      {
+        path: 'src/app/play/[sessionId]/page.tsx',
+        source: "import '@/app/host/questions/question-form';",
+      },
+      {
+        path: 'src/components/question.tsx',
+        source: "import '../app/host/questions/[id]/edit/page';",
+      },
+      {
+        path: 'src/app/join/join-form.tsx',
+        source: "import '../../lib/questions/validate';",
+      },
+    ];
+    const authoringFiles = [
+      'src/app/host/questions/question-form.tsx',
+      'src/app/host/questions/[id]/edit/page.tsx',
+      'src/lib/questions/validate.ts',
+    ];
+
+    expect(findImportsOfFiles(
+      sources,
+      ['src/app/play', 'src/app/join', 'src/components'],
+      authoringFiles,
+    )).toEqual([
+      { filePath: 'src/app/play/[sessionId]/page.tsx', importedPath: 'src/app/host/questions/question-form' },
+      { filePath: 'src/components/question.tsx', importedPath: 'src/app/host/questions/[id]/edit/page' },
+      { filePath: 'src/app/join/join-form.tsx', importedPath: 'src/lib/questions/validate' },
+    ]);
+  });
+
   it('rejects private data and forbidden runtime imports in pure player modules', () => {
     const forbiddenText = 'session' + '_private';
     const cases = [
@@ -236,10 +315,10 @@ describe('checkBoundaries', () => {
   it('scans non test TypeScript files for answer field names', () => {
     expect(findAnswerDataFiles([
       { path: 'src/lib/sessions/answer-deps.ts', source: "from('question_answers')" },
-      { path: 'src/app/host/questions.tsx', source: '.select("correct_index")' },
-      { path: 'src/lib/sessions/comment.ts', source: '// correct_index must stay private' },
+      { path: 'src/app/host/questions.tsx', source: `.select("${DATABASE_ANSWER_COLUMN}")` },
+      { path: 'src/lib/sessions/comment.ts', source: `// ${DATABASE_ANSWER_COLUMN} must stay private` },
       { path: 'src/lib/sessions/safe.ts', source: 'export const value = 1;' },
-      { path: 'src/lib/sessions/example.test.ts', source: 'question_answers correct_index' },
+      { path: 'src/lib/sessions/example.test.ts', source: `question_answers ${DATABASE_ANSWER_COLUMN}` },
       { path: 'src/app/host/questions.js', source: 'question_answers' },
     ])).toEqual([
       'src/app/host/questions.tsx',

@@ -5,6 +5,10 @@ import {
   checkBoundaries,
   extractImports,
   findAnswerDataFiles,
+  findIdentifierFiles,
+  findImportsFromDirectories,
+  findImportsOfFiles,
+  findUnexpectedIdentifierFiles,
   isActionFile,
   isClientFile,
   isTypeOnlyImport,
@@ -17,7 +21,41 @@ const HOST_PAGE = 'src/app/host/sessions/[id]/page.tsx';
 const HOST_CONTROLS = 'src/app/host/sessions/[id]/session-controls.tsx';
 const HOST_ACTIONS = 'src/app/host/sessions/[id]/actions.ts';
 const COUNTDOWN_TIMER = 'src/components/countdown-timer';
-const HOST_SENSITIVE_FIELDS = ['question_answers', 'correct_index', 'session_private'];
+const DATABASE_ANSWER_COLUMN = 'correct' + '_index';
+const PUBLIC_ANSWER_IDENTIFIER = ['correct', 'Index'].join('');
+const HOST_SENSITIVE_FIELDS = ['question_answers', DATABASE_ANSWER_COLUMN, 'session_private'];
+const PLAYER_IMPORT_DIRECTORIES = [
+  'src/app/play',
+  'src/app/join',
+  'src/components',
+];
+const QUESTION_AUTHORING_FILES = [
+  'src/app/host/questions/[id]/edit/page.tsx',
+  'src/app/host/questions/actions.ts',
+  'src/app/host/questions/delete-question-form.tsx',
+  'src/app/host/questions/new/page.tsx',
+  'src/app/host/questions/page.tsx',
+  'src/app/host/questions/question-form.tsx',
+  'src/lib/questions/db-errors.ts',
+  'src/lib/questions/form-data.ts',
+  'src/lib/questions/validate.ts',
+];
+const CORRECT_INDEX_ALLOWLIST = [
+  'src/app/host/questions/[id]/edit/page.tsx',
+  'src/app/host/questions/actions.ts',
+  'src/app/host/questions/question-form.tsx',
+  'src/app/play/[sessionId]/audience-panel.tsx',
+  'src/app/play/[sessionId]/contestant-panel.tsx',
+  'src/app/play/[sessionId]/page.tsx',
+  'src/game/apply-event.ts',
+  'src/game/initial-state.ts',
+  'src/game/types.ts',
+  'src/lib/questions/form-data.ts',
+  'src/lib/questions/validate.ts',
+  'src/lib/sessions/read-public-state.ts',
+  'src/lib/sessions/reveal-view.ts',
+  'src/lib/sessions/run-session-event.ts',
+].sort();
 
 function sourceFiles(directory: string): SourceFile[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -51,6 +89,13 @@ function actionDefinitionPaths(files: SourceFile[], actionName: string): string[
     .sort();
 }
 
+function filesWithDatabaseAnswerColumn(files: SourceFile[]): string[] {
+  return files
+    .filter((file) => file.source.toLowerCase().includes(DATABASE_ANSWER_COLUMN))
+    .map((file) => file.path)
+    .sort();
+}
+
 describe('session import boundaries', () => {
   const files = sourceFiles(join(process.cwd(), 'src'));
   const answerDataFiles = findAnswerDataFiles(files);
@@ -71,6 +116,119 @@ describe('session import boundaries', () => {
     expect(paths.has('src/app/host/sessions/[id]/page.tsx')).toBe(true);
     expect(paths.has('src/app/host/sessions/[id]/actions.ts')).toBe(true);
     expect(checkBoundaries(files)).toEqual([]);
+  });
+
+  it('detects the forbidden database answer column in fake sources', () => {
+    expect(filesWithDatabaseAnswerColumn([
+      { path: 'src/app/play/fake.tsx', source: `const column = '${DATABASE_ANSWER_COLUMN}';` },
+    ])).toEqual(['src/app/play/fake.tsx']);
+  });
+
+  it('keeps the database answer column out of player, component, and reveal helper files', () => {
+    const restrictedFiles = files.filter((file) =>
+      PLAYER_IMPORT_DIRECTORIES.some((directory) => file.path.startsWith(`${directory}/`)) ||
+      [
+        'src/lib/sessions/reveal-view.ts',
+        'src/lib/sessions/ladder-view.ts',
+        'src/lib/sessions/read-public-state.ts',
+      ].includes(file.path),
+    );
+    expect(filesWithDatabaseAnswerColumn(restrictedFiles)).toEqual([]);
+  });
+
+  it('allows the public answer identifier only in the exact scanned source paths', () => {
+    expect(findUnexpectedIdentifierFiles(
+      files,
+      PUBLIC_ANSWER_IDENTIFIER,
+      CORRECT_INDEX_ALLOWLIST,
+    )).toEqual([]);
+    expect(findIdentifierFiles(files, PUBLIC_ANSWER_IDENTIFIER)).toEqual(
+      CORRECT_INDEX_ALLOWLIST,
+    );
+    expect(findUnexpectedIdentifierFiles(
+      [{
+        path: 'src/lib/sessions/unlisted.ts',
+        source: `export const value = ${PUBLIC_ANSWER_IDENTIFIER};`,
+      }],
+      PUBLIC_ANSWER_IDENTIFIER,
+      CORRECT_INDEX_ALLOWLIST,
+    )).toEqual(['src/lib/sessions/unlisted.ts']);
+  });
+
+  it('blocks player, join, and component imports from host and question helper directories', () => {
+    expect(findImportsFromDirectories(
+      files,
+      PLAYER_IMPORT_DIRECTORIES,
+      ['src/app/host', 'src/lib/questions'],
+    )).toEqual([]);
+  });
+
+  it('blocks imports of exact question authoring files from player, join, and component code', () => {
+    expect(findImportsOfFiles(
+      files,
+      PLAYER_IMPORT_DIRECTORIES,
+      QUESTION_AUTHORING_FILES,
+    )).toEqual([]);
+  });
+
+  it('detects both restricted import rules in fake sources', () => {
+    const fakeFiles: SourceFile[] = [
+      {
+        path: 'src/app/play/fake.tsx',
+        source: "import '@/app/host/sessions/actions';",
+      },
+      {
+        path: 'src/app/join/fake.tsx',
+        source: "import '../../lib/questions/validate';",
+      },
+      {
+        path: 'src/components/fake.tsx',
+        source: "import '../app/host/questions/question-form';",
+      },
+    ];
+
+    expect(findImportsFromDirectories(
+      fakeFiles,
+      PLAYER_IMPORT_DIRECTORIES,
+      ['src/app/host', 'src/lib/questions'],
+    )).toHaveLength(3);
+    expect(findImportsOfFiles(
+      fakeFiles,
+      PLAYER_IMPORT_DIRECTORIES,
+      QUESTION_AUTHORING_FILES,
+    )).toEqual([
+      { filePath: 'src/app/join/fake.tsx', importedPath: 'src/lib/questions/validate' },
+      { filePath: 'src/components/fake.tsx', importedPath: 'src/app/host/questions/question-form' },
+    ]);
+  });
+
+  it('keeps pure view helpers free of React, Next, and Supabase imports', () => {
+    for (const path of ['src/lib/sessions/reveal-view.ts', 'src/lib/sessions/ladder-view.ts']) {
+      const file = files.find((entry) => entry.path === path);
+      expect(file, path).toBeDefined();
+      if (!file) continue;
+
+      for (const specifier of extractImports(file.source)) {
+        const importedPath = resolveSpecifier(specifier, file.path);
+        expect(importedPath, path).not.toMatch(/^react(?:\/|$)/);
+        expect(importedPath, path).not.toMatch(/^next(?:\/|$)/);
+        expect(importedPath, path).not.toMatch(/^src\/lib\/supabase(?:\/|$)/);
+      }
+    }
+  });
+
+  it('keeps the money ladder free of admin and server only imports', () => {
+    const file = files.find((entry) => entry.path === 'src/components/money-ladder.tsx');
+    expect(file).toBeDefined();
+    if (!file) throw new Error('Expected the money ladder in the source scan.');
+
+    for (const specifier of extractImports(file.source)) {
+      const importedPath = resolveSpecifier(specifier, file.path);
+      expect(specifier).not.toBe('server-only');
+      expect(importedPath).not.toBe('src/lib/supabase/admin');
+      expect(importedPath).not.toBe('src/lib/sessions/session-event-deps');
+      expect(importedPath).not.toBe('src/lib/sessions/run-session-event');
+    }
   });
 
   it('keeps the live refresh component client safe', () => {
@@ -96,7 +254,7 @@ describe('session import boundaries', () => {
     const source = component.source.toLowerCase();
     expect(source).not.toContain('session_private');
     expect(source).not.toContain('question_answers');
-    expect(source).not.toContain('correct_index');
+    expect(source).not.toContain(DATABASE_ANSWER_COLUMN);
   });
 
   it('keeps private tables and answer fields out of host session pages', () => {
@@ -108,13 +266,13 @@ describe('session import boundaries', () => {
       const source = file.source.toLowerCase();
       expect(source, file.path).not.toContain('session_private');
       expect(source, file.path).not.toContain('question_answers');
-      expect(source, file.path).not.toContain('correct_index');
+      expect(source, file.path).not.toContain(DATABASE_ANSWER_COLUMN);
     }
   });
 
   it('detects sensitive fields in fake host page and control sources', () => {
     expect(containsHostSensitiveField("const field = 'question_answers';")).toBe(true);
-    expect(containsHostSensitiveField("const field = 'correct_index';")).toBe(true);
+    expect(containsHostSensitiveField(`const field = '${DATABASE_ANSWER_COLUMN}';`)).toBe(true);
     expect(containsHostSensitiveField("const field = 'session_private';")).toBe(true);
   });
 
@@ -188,7 +346,7 @@ describe('session import boundaries', () => {
     expect(depsFile).toBeDefined();
     const source = depsFile?.source.toLowerCase() ?? '';
     expect(source).not.toContain('question_answers');
-    expect(source).not.toContain('correct_index');
+    expect(source).not.toContain(DATABASE_ANSWER_COLUMN);
     expect(source).not.toMatch(/\.select\s*\(\s*(?:['"]\*['"]|`\*`)?\s*\)/);
   });
 
@@ -299,7 +457,7 @@ describe('session import boundaries', () => {
       expect(isClientFile(file.source), path).toBe(true);
       const source = file.source.toLowerCase();
       expect(source, path).not.toContain('question_answers');
-      expect(source, path).not.toContain('correct_index');
+      expect(source, path).not.toContain(DATABASE_ANSWER_COLUMN);
       expect(source, path).not.toContain('session_private');
 
       for (const specifier of extractImports(file.source)) {

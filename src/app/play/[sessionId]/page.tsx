@@ -1,8 +1,11 @@
 import { notFound } from 'next/navigation';
 import { readCurrentQuestion, readPublicState } from '../../../lib/sessions/read-public-state';
+import { describeFinishReason } from '../../../lib/sessions/reveal-view';
+import { formatNaira } from '../../../lib/sessions/ladder-view';
 import { createClient } from '../../../lib/supabase/server';
 import { LiveSessionRefresh } from '../../../components/live-session-refresh';
 import { CountdownTimer } from '../../../components/countdown-timer';
+import { MoneyLadder } from '../../../components/money-ladder';
 import { ContestantPanel } from './contestant-panel';
 import { AudiencePanel } from './audience-panel';
 import { castVoteAction, submitAnswerAction } from './actions';
@@ -39,11 +42,6 @@ function readParticipant(value: unknown): Participant | null {
 
 function statusLabel(status: string): string {
   const words = status.replaceAll('_', ' ');
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-function reasonLabel(reason: string): string {
-  const words = reason.replaceAll('_', ' ');
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
@@ -124,7 +122,9 @@ export default async function PlayPage({
   const isWaiting = publicState.status === 'waiting';
   const showQuestionScreen =
     (publicState.status === 'question_active' ||
-      publicState.status === 'locked') &&
+      publicState.status === 'locked' ||
+      publicState.status === 'revealed' ||
+      publicState.status === 'finished') &&
     currentQuestion !== null;
   // eslint-disable-next-line react-hooks/purity
   const serverNowMs = Date.now();
@@ -162,6 +162,13 @@ export default async function PlayPage({
       ) : (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Status: {statusLabel(publicState.status)}</h2>
+          {publicState.position !== null && publicState.position >= 1 ? (
+            <MoneyLadder
+              position={publicState.position}
+              status={publicState.status}
+              lastResult={publicState.lastResult}
+            />
+          ) : null}
           {currentQuestion ? (
             <CountdownTimer
               endsAtMs={publicState.questionEndsAt}
@@ -181,6 +188,9 @@ export default async function PlayPage({
                   amountAtStake={publicState.amountAtStake}
                   question={currentQuestion}
                   lockedAnswer={publicState.lockedAnswer}
+                  correctIndex={publicState.correctIndex}
+                  lastResult={publicState.lastResult}
+                  status={publicState.status}
                   open={publicState.status === 'question_active'}
                   submitAction={submitAnswerAction}
                 />
@@ -192,6 +202,9 @@ export default async function PlayPage({
                   amountAtStake={publicState.amountAtStake}
                   question={currentQuestion}
                   lockedAnswer={publicState.lockedAnswer}
+                  correctIndex={publicState.correctIndex}
+                  lastResult={publicState.lastResult}
+                  status={publicState.status}
                   open={publicState.status === 'question_active'}
                   voteAction={castVoteAction}
                 />
@@ -204,7 +217,7 @@ export default async function PlayPage({
                 {currentQuestion.options.map((option, index) => <li key={index}>{option}</li>)}
               </ol>
               {publicState.status === 'revealed' ? (
-                <p>Waiting for the host</p>
+                <p>Waiting for the host to continue</p>
               ) : null}
             </div>
           ) : null}
@@ -217,11 +230,9 @@ export default async function PlayPage({
           {publicState.status === 'finished' ? (
             <div className="space-y-1">
               {publicState.winnings !== null ? (
-                <p>Winnings: ₦{publicState.winnings.toLocaleString('en-NG')}</p>
+                <p>Winnings: {formatNaira(publicState.winnings)}</p>
               ) : null}
-              {publicState.finishReason ? (
-                <p>Finish reason: {reasonLabel(publicState.finishReason)}</p>
-              ) : null}
+              <p>Finish reason: {describeFinishReason(publicState.finishReason)}</p>
             </div>
           ) : null}
         </section>

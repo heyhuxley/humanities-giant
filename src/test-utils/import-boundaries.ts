@@ -44,6 +44,77 @@ function isUnder(path: string, directory: string): boolean {
   return path === directory || path.startsWith(`${directory}/`);
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export type ImportReference = {
+  filePath: string;
+  importedPath: string;
+};
+
+export function findIdentifierFiles(
+  files: { path: string; source: string }[],
+  identifier: string,
+): string[] {
+  const identifierPattern = new RegExp(`\\b${escapeRegExp(identifier)}\\b`);
+  return files
+    .filter((file) => !isTestFile(file.path) && /\.(?:ts|tsx)$/i.test(file.path))
+    .filter((file) => identifierPattern.test(file.source))
+    .map((file) => normalizedPath(file.path))
+    .sort();
+}
+
+export function findUnexpectedIdentifierFiles(
+  files: { path: string; source: string }[],
+  identifier: string,
+  allowedPaths: string[],
+): string[] {
+  const allowed = new Set(allowedPaths.map(normalizedPath));
+  return findIdentifierFiles(files, identifier).filter((filePath) => !allowed.has(filePath));
+}
+
+export function findImportsFromDirectories(
+  files: { path: string; source: string }[],
+  importerDirectories: string[],
+  blockedDirectories: string[],
+): ImportReference[] {
+  return files
+    .filter((file) => importerDirectories.some((directory) =>
+      isUnder(normalizedPath(file.path), directory),
+    ))
+    .flatMap((file) => extractImports(file.source)
+      .map((specifier) => resolveSpecifier(specifier, file.path))
+      .filter((importedPath) => blockedDirectories.some((directory) =>
+        isUnder(importedPath, directory),
+      ))
+      .map((importedPath) => ({
+        filePath: normalizedPath(file.path),
+        importedPath,
+      })));
+}
+
+export function findImportsOfFiles(
+  files: { path: string; source: string }[],
+  importerDirectories: string[],
+  blockedFiles: string[],
+): ImportReference[] {
+  const blocked = new Set(blockedFiles.map((filePath) =>
+    normalizedPath(filePath).replace(/\.(?:tsx?|jsx?)$/i, ''),
+  ));
+  return files
+    .filter((file) => importerDirectories.some((directory) =>
+      isUnder(normalizedPath(file.path), directory),
+    ))
+    .flatMap((file) => extractImports(file.source)
+      .map((specifier) => resolveSpecifier(specifier, file.path))
+      .filter((importedPath) => blocked.has(importedPath))
+      .map((importedPath) => ({
+        filePath: normalizedPath(file.path),
+        importedPath,
+      })));
+}
+
 export function isActionFile(path: string): boolean {
   return isUnder(path, 'src/app') && path.split('/').at(-1) === 'actions.ts';
 }

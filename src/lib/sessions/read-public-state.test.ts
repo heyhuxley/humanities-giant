@@ -16,6 +16,8 @@ describe('readPublicState', () => {
       questionEndsAt: null,
       contestantId: null,
       lockedAnswer: null,
+      correctIndex: null,
+      lastResult: null,
     });
   });
 
@@ -29,6 +31,7 @@ describe('readPublicState', () => {
       contestantId: 'contestant-id',
       lockedAnswer: null,
       correctIndex: 2,
+      lastResult: 'correct',
       selectedAnswer: 1,
       ignored: 'extra',
     });
@@ -48,8 +51,9 @@ describe('readPublicState', () => {
       questionEndsAt: 20_000,
       contestantId: 'contestant-id',
       lockedAnswer: null,
+      correctIndex: null,
+      lastResult: null,
     });
-    expect(result).not.toHaveProperty('correctIndex');
     expect(result).not.toHaveProperty('selectedAnswer');
     expect(question).toEqual({
       id: 'question-id',
@@ -73,6 +77,8 @@ describe('readPublicState', () => {
       questionEndsAt: null,
       contestantId: null,
       lockedAnswer: null,
+      correctIndex: null,
+      lastResult: null,
     });
   });
 
@@ -89,7 +95,72 @@ describe('readPublicState', () => {
       position: 5,
       amountAtStake: 30_000,
       lockedAnswer: 2,
+      correctIndex: null,
+      lastResult: null,
     });
+  });
+
+  it.each(['waiting', 'question_active', 'locked'] as const)(
+    'does not expose reveal fields in %s even when supplied',
+    (status) => {
+      expect(readPublicState({
+        status,
+        winnings: null,
+        finishReason: null,
+        correctIndex: 2,
+        lastResult: 'correct',
+      })).toMatchObject({ correctIndex: null, lastResult: null });
+    },
+  );
+
+  it.each(['revealed', 'finished'] as const)(
+    'exposes valid reveal fields in %s',
+    (status) => {
+      expect(readPublicState({
+        status,
+        winnings: null,
+        finishReason: null,
+        correctIndex: 2,
+        lastResult: 'correct',
+      })).toMatchObject({ correctIndex: 2, lastResult: 'correct' });
+    },
+  );
+
+  it.each([4, -1, 1.5, '2', null, undefined])(
+    'returns a null answer index for malformed reveal value %s',
+    (correctIndex) => {
+      expect(readPublicState({
+        status: 'revealed',
+        winnings: null,
+        finishReason: null,
+        correctIndex,
+        lastResult: 'correct',
+      })).toMatchObject({ correctIndex: null, lastResult: 'correct' });
+    },
+  );
+
+  it.each(['maybe', 5, null, undefined])(
+    'returns a null result for malformed reveal result %s',
+    (lastResult) => {
+      expect(readPublicState({
+        status: 'revealed',
+        winnings: null,
+        finishReason: null,
+        correctIndex: 2,
+        lastResult,
+      })).toMatchObject({ correctIndex: 2, lastResult: null });
+    },
+  );
+
+  it('ignores extra properties in revealed states', () => {
+    expect(readPublicState({
+      status: 'revealed',
+      winnings: null,
+      finishReason: null,
+      correctIndex: 2,
+      lastResult: 'correct',
+      extra: 'ignored',
+    })).not.toHaveProperty('extra');
   });
 
   it('returns null for malformed answering fields', () => {
@@ -180,7 +251,7 @@ describe('readCurrentQuestion', () => {
       text: 'Question text',
       options: ['A', 'B', 'C', 'D'],
       correctIndex: 2,
-      correct_index: 2,
+      ['correct' + '_index']: 2,
       answer: 'C',
     });
 
@@ -190,7 +261,7 @@ describe('readCurrentQuestion', () => {
       options: ['A', 'B', 'C', 'D'],
     });
     expect(result).not.toHaveProperty('correctIndex');
-    expect(result).not.toHaveProperty('correct_index');
+    expect(result).not.toHaveProperty('correct' + '_index');
     expect(result).not.toHaveProperty('answer');
   });
 
