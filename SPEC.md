@@ -477,3 +477,9 @@ shown. It is cleared only in `waiting`.
 - If the dry run passes but the real run is rejected, the result is an internal error, not a game error.
 - Votes are counted from the votes table at the moment of use. A vote arriving at the same instant may or may not be counted. Only the option column is read, never who voted.
 - The runner receives its random source as a dependency. Randomness never enters the engine.
+
+### 19.6 Lifeline action
+- The browser sends only the session id and which lifeline (`fifty_fifty`, `phone` or `audience`). The server finds the caller's participant id from the verified login and runs the payload-free lifeline request as the contestant actor.
+- Callers with no participant row in the session get "not found". Audience members get the engine's "not allowed". Stale or repeated requests are rejected by the engine's dry run.
+- The contestant's buttons are disabled when the lifeline is used, when the question is not open, and while a request is pending. Using one needs a second confirming tap.
+- The player screens read only the used flags and the position each was used at. Results appear in the next slice. `hintIsCorrect` is never read by any player-facing code.
