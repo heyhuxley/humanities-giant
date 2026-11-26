@@ -52,10 +52,18 @@ const CORRECT_INDEX_ALLOWLIST = [
   'src/game/types.ts',
   'src/lib/questions/form-data.ts',
   'src/lib/questions/validate.ts',
+  'src/lib/sessions/lifeline-payloads.ts',
   'src/lib/sessions/read-public-state.ts',
   'src/lib/sessions/reveal-view.ts',
   'src/lib/sessions/run-session-event.ts',
 ].sort();
+const LIFELINE_FORBIDDEN_TEXT = [
+  ['question', '_answers'].join(''),
+  ['correct', '_index'].join(''),
+  ['session', '_private'].join(''),
+  ['Math', '.', 'random'].join(''),
+  ['Date', '.', 'now'].join(''),
+];
 
 function sourceFiles(directory: string): SourceFile[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -94,6 +102,26 @@ function filesWithDatabaseAnswerColumn(files: SourceFile[]): string[] {
     .filter((file) => file.source.toLowerCase().includes(DATABASE_ANSWER_COLUMN))
     .map((file) => file.path)
     .sort();
+}
+
+function lifelineForbiddenImports(filesToCheck: SourceFile[]): string[] {
+  const forbiddenModules = [
+    'react',
+    'next',
+    '@supabase/supabase-js',
+    'server-only',
+    'node:crypto',
+    'src/lib/supabase',
+    'src/app',
+  ];
+
+  return filesToCheck.flatMap((file) =>
+    extractImports(file.source)
+      .map((specifier) => resolveSpecifier(specifier, file.path))
+      .filter((resolved) => forbiddenModules.some((module) =>
+        resolved === module || resolved.startsWith(`${module}/`),
+      )),
+  );
 }
 
 describe('session import boundaries', () => {
@@ -153,6 +181,50 @@ describe('session import boundaries', () => {
       PUBLIC_ANSWER_IDENTIFIER,
       CORRECT_INDEX_ALLOWLIST,
     )).toEqual(['src/lib/sessions/unlisted.ts']);
+  });
+
+  it('scans the lifeline payload module and keeps its public answer identifier allowlisted', () => {
+    expect(files.some((file) => file.path === 'src/lib/sessions/lifeline-payloads.ts')).toBe(true);
+    expect(findUnexpectedIdentifierFiles(
+      files,
+      PUBLIC_ANSWER_IDENTIFIER,
+      CORRECT_INDEX_ALLOWLIST,
+    )).toEqual([]);
+    expect(findIdentifierFiles(files, PUBLIC_ANSWER_IDENTIFIER)).toEqual(
+      CORRECT_INDEX_ALLOWLIST,
+    );
+  });
+
+  it('keeps the lifeline payload module free of forbidden imports and source text', () => {
+    const lifelineFile = files.find((file) => file.path === 'src/lib/sessions/lifeline-payloads.ts');
+    expect(lifelineFile).toBeDefined();
+    if (!lifelineFile) return;
+
+    expect(lifelineForbiddenImports([lifelineFile])).toEqual([]);
+    expect(LIFELINE_FORBIDDEN_TEXT.filter((text) => lifelineFile.source.includes(text))).toEqual([]);
+  });
+
+  it('detects forbidden lifeline imports and source text in fake files', () => {
+    const fakeFiles: SourceFile[] = [
+      {
+        path: 'src/lib/sessions/lifeline-payloads.ts',
+        source: [
+          "import 'react';",
+          "import 'next/server';",
+          "import '@supabase/supabase-js';",
+          "import '../supabase/admin';",
+          "import '../supabase/server';",
+          "import 'node:crypto';",
+          "import '../../app/host/actions';",
+          `const restricted = '${LIFELINE_FORBIDDEN_TEXT.join(' ')}';`,
+        ].join('\n'),
+      },
+    ];
+
+    expect(lifelineForbiddenImports(fakeFiles)).toHaveLength(7);
+    expect(LIFELINE_FORBIDDEN_TEXT.filter((text) =>
+      fakeFiles[0].source.includes(text),
+    )).toEqual(LIFELINE_FORBIDDEN_TEXT);
   });
 
   it('blocks player, join, and component imports from host and question helper directories', () => {
