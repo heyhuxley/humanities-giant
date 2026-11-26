@@ -436,3 +436,11 @@ shown. It is cleared only in `waiting`.
 - The contestant's tentative choice is local to their browser and cleared when the question changes. A final answer needs a second confirming tap.
 - The audience's chosen option is also local. Votes cannot be read back from the server, so after a reload the highlight is gone but the vote counts. Voting again replaces it.
 - After the answer is locked, all screens show the locked option and "Waiting for the host to reveal". The correct answer is never shown before the reveal.
+
+### 18.8 Reveal and next
+- The host reveals with a request that carries no answer. The server reads the correct index for the current position only after confirming the caller owns the session and the status is `locked`.
+- After a reveal, a correct answer below question 15 leaves the status `revealed`. A wrong answer, a timeout, or a correct answer at question 15 sets the status `finished` in the same step.
+- The host advances with `next`, allowed only from `revealed`.
+- The host page shows the countdown and sends the timer knock while the status is `question_active`, so the game cannot stall when no player is connected.
+- The host page shows the status, the locked option once there is one, and only the buttons that make sense for the status: Reveal when `locked`, Next when `revealed`, End session until `finished`.
+- Rejections from stale clicks (wrong state, already finished) show friendly messages, never raw errors.
