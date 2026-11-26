@@ -444,3 +444,11 @@ shown. It is cleared only in `waiting`.
 - The host page shows the countdown and sends the timer knock while the status is `question_active`, so the game cannot stall when no player is connected.
 - The host page shows the status, the locked option once there is one, and only the buttons that make sense for the status: Reveal when `locked`, Next when `revealed`, End session until `finished`.
 - Rejections from stale clicks (wrong state, already finished) show friendly messages, never raw errors.
+
+### 18.9 Reveal display
+- Player screens may read and show `correctIndex` and `lastResult` only when the status is `revealed` or `finished`, and only when they are present. For every other status the safe reader returns null for both.
+- After a reveal, every screen shows all four options with the correct one marked, and the contestant's locked option marked wrong when it differs. If there was no locked answer (timeout) it says time ran out.
+- Meaning is never carried by colour alone: each marked option also shows an icon and a text label.
+- A finished game with no reveal (ended by the host) shows no correct answer.
+- The money ladder shows the 15 amounts from the engine's ladder constants, the two guaranteed milestones (questions 5 and 10), and the contestant's position. A question counts as passed once its reveal shows a correct answer.
+- When the game finishes, every screen shows the winnings in naira and the reason in words (won, wrong answer, time ran out, walked away, ended by the host).
