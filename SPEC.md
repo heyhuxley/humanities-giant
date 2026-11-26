@@ -483,3 +483,10 @@ shown. It is cleared only in `waiting`.
 - Callers with no participant row in the session get "not found". Audience members get the engine's "not allowed". Stale or repeated requests are rejected by the engine's dry run.
 - The contestant's buttons are disabled when the lifeline is used, when the question is not open, and while a request is pending. Using one needs a second confirming tap.
 - The player screens read only the used flags and the position each was used at. Results appear in the next slice. `hintIsCorrect` is never read by any player-facing code.
+
+### 19.7 Lifeline results display
+- Every screen shows a lifeline's result only while the current position equals the position where it was used. On later questions the lifeline stays marked used and the result is hidden.
+- 50:50: the two removed options are greyed out with the text "Removed" and cannot be selected on the contestant's screen or voted for on the audience screen. The server does not reject a pick of a removed option (it is always wrong). This is accepted for v1.
+- Phone a friend: shows "Your friend thinks the answer is <letter>". It never says whether the friend is right. `hintIsCorrect` is never read by any player-facing code.
+- Ask the audience: shows a bar and a whole-number percentage for each option. Meaning is also in text, never in colour alone. When fewer than 3 votes were counted it shows "Not enough audience votes". Only the percentages are shown, never individual votes.
+- The safe reader returns a lifeline's result only when it was used at the current position, and never returns `hintIsCorrect`.
