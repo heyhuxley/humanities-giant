@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { parseEndSessionForm, parseSetContestantForm, parseStartForm } from './host-event-form';
+import {
+  parseEndSessionForm,
+  parseNextForm,
+  parseRevealForm,
+  parseSetContestantForm,
+  parseStartForm,
+} from './host-event-form';
 
 function makeForm(fields: Record<string, string | File> = {}): FormData {
   const formData = new FormData();
@@ -86,6 +92,44 @@ describe('parseEndSessionForm', () => {
     expect(parseEndSessionForm(makeForm({ sessionId: SESSION_ID }))).toEqual({
       ok: true,
       sessionId: SESSION_ID.toLowerCase(),
+    });
+  });
+
+  describe.each([
+    ['parseRevealForm', parseRevealForm],
+    ['parseNextForm', parseNextForm],
+  ])('%s', (_name, parseForm) => {
+    it('accepts a UUID and returns its lowercase form', () => {
+      expect(parseForm(makeForm({ sessionId: SESSION_ID }))).toEqual({
+        ok: true,
+        sessionId: SESSION_ID.toLowerCase(),
+      });
+    });
+
+    it.each([
+      ['missing', makeForm()],
+      ['not a UUID', makeForm({ sessionId: 'not-a-uuid' })],
+    ])('rejects a %s session id', (_label, formData) => {
+      expect(parseForm(formData)).toMatchObject({ ok: false });
+    });
+
+    it('rejects a non-string value', () => {
+      const formData = new FormData();
+      Object.defineProperty(formData, 'get', { value: () => 42 });
+      expect(parseForm(formData)).toMatchObject({ ok: false });
+    });
+
+    it('rejects a File value', () => {
+      const formData = new FormData();
+      formData.append('sessionId', new Blob(['file']), 'session.txt');
+      expect(parseForm(formData)).toMatchObject({ ok: false });
+    });
+
+    it('ignores extra fields', () => {
+      expect(parseForm(makeForm({ sessionId: SESSION_ID, type: 'untrusted' }))).toEqual({
+        ok: true,
+        sessionId: SESSION_ID.toLowerCase(),
+      });
     });
   });
 

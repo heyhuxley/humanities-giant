@@ -3,6 +3,8 @@
 import { useActionState, useState } from 'react';
 import {
   endSessionAction,
+  nextAction,
+  revealAction,
   setContestantAction,
   startSessionAction,
   type HostEventActionState,
@@ -99,5 +101,41 @@ export function EndSessionControl({ sessionId }: Readonly<{ sessionId: string }>
         {state.error ? <p role="alert" className="text-sm text-red-700">{state.error}</p> : null}
       </form>
     </div>
+  );
+}
+
+export function RevealControl({ sessionId }: Readonly<{ sessionId: string }>) {
+  const [state, formAction, pending] = useActionState(revealAction, INITIAL_STATE);
+
+  return (
+    <form action={formAction} className="space-y-1">
+      <input type="hidden" name="sessionId" value={sessionId} />
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded bg-gray-900 px-4 py-2 text-white disabled:opacity-50"
+      >
+        {pending ? 'Revealing…' : 'Reveal answer'}
+      </button>
+      {state.error ? <p role="alert" className="text-sm text-red-700">{state.error}</p> : null}
+    </form>
+  );
+}
+
+export function NextControl({ sessionId }: Readonly<{ sessionId: string }>) {
+  const [state, formAction, pending] = useActionState(nextAction, INITIAL_STATE);
+
+  return (
+    <form action={formAction} className="space-y-1">
+      <input type="hidden" name="sessionId" value={sessionId} />
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded bg-gray-900 px-4 py-2 text-white disabled:opacity-50"
+      >
+        {pending ? 'Moving on…' : 'Next question'}
+      </button>
+      {state.error ? <p role="alert" className="text-sm text-red-700">{state.error}</p> : null}
+    </form>
   );
 }

@@ -2,8 +2,16 @@ import { notFound } from 'next/navigation';
 import { requireHost } from '@/lib/auth/require-host';
 import { createClient } from '@/lib/supabase/server';
 import { readCurrentQuestion, readPublicState } from '@/lib/sessions/read-public-state';
+import { knockAction } from '../../../knock/actions';
+import { CountdownTimer } from '../../../../components/countdown-timer';
 import { LiveSessionRefresh } from '../../../../components/live-session-refresh';
-import { EndSessionControl, SetContestantForm, StartSessionForm } from './session-controls';
+import {
+  EndSessionControl,
+  NextControl,
+  RevealControl,
+  SetContestantForm,
+  StartSessionForm,
+} from './session-controls';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
@@ -88,8 +96,25 @@ export default async function HostSessionPage({ params }: Readonly<{ params: Pro
   const orderedQuestions = [...(session.session_questions ?? [])].sort((first, second) => first.position - second.position);
   const safeState = readPublicState(session.public_state);
   const status = safeState?.status ?? 'unknown';
+  const position = safeState?.position ?? null;
+  const lockedAnswer = safeState?.lockedAnswer ?? null;
+  const questionEndsAt = safeState?.questionEndsAt ?? null;
+  // The host server render supplies the clock sample used by the client countdown.
+  // eslint-disable-next-line react-hooks/purity
+  const serverNowMs = Date.now();
   const question = readCurrentQuestion(session.current_question);
   const hasContestant = participants.some((participant) => participant.role === 'contestant');
+  const statusMessage = status === 'question_active'
+    ? 'Waiting for the contestant to answer'
+    : status === 'locked'
+      ? lockedAnswer === null
+        ? 'Time ran out with no answer'
+        : `Contestant locked in option ${String.fromCharCode(65 + lockedAnswer)}`
+      : status === 'revealed'
+        ? 'Answer revealed'
+        : status === 'finished'
+          ? 'Game finished'
+          : null;
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6">
       <header className="space-y-2">
@@ -99,6 +124,16 @@ export default async function HostSessionPage({ params }: Readonly<{ params: Pro
         <LiveSessionRefresh sessionId={session.id} />
       </header>
       <p>Status: <span className="font-medium">{status}</span></p>
+      {statusMessage ? <p role="status">{statusMessage}</p> : null}
+      {status === 'question_active' ? (
+        <CountdownTimer
+          active={status === 'question_active'}
+          endsAtMs={questionEndsAt}
+          serverNowMs={serverNowMs}
+          sessionId={session.id}
+          knockAction={knockAction}
+        />
+      ) : null}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Session questions</h2>
         <ol className="space-y-2">
@@ -131,14 +166,21 @@ export default async function HostSessionPage({ params }: Readonly<{ params: Pro
           <div className="space-y-2">
             {question ? (
               <>
+                {position === null ? null : <p>Question {position}</p>}
                 <p>{question.text}</p>
-                <ol className="list-inside list-decimal space-y-1">
-                  {question.options.map((option, index) => <li key={index}>{option}</li>)}
+                <ol className="space-y-1">
+                  {question.options.map((option, index) => (
+                    <li key={index}>
+                      <span className="font-semibold">{String.fromCharCode(65 + index)}.</span> {option}
+                    </li>
+                  ))}
                 </ol>
               </>
             ) : null}
           </div>
         )}
+        {status === 'locked' ? <RevealControl sessionId={session.id} /> : null}
+        {status === 'revealed' ? <NextControl sessionId={session.id} /> : null}
         {safeState?.status === 'finished' ? (
           <section aria-label="Session result" className="space-y-2 rounded border p-4">
             <h2 className="text-lg font-semibold">Final result</h2>

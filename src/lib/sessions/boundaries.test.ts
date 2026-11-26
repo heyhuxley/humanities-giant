@@ -13,6 +13,12 @@ import {
 
 type SourceFile = { path: string; source: string };
 
+const HOST_PAGE = 'src/app/host/sessions/[id]/page.tsx';
+const HOST_CONTROLS = 'src/app/host/sessions/[id]/session-controls.tsx';
+const HOST_ACTIONS = 'src/app/host/sessions/[id]/actions.ts';
+const COUNTDOWN_TIMER = 'src/components/countdown-timer';
+const HOST_SENSITIVE_FIELDS = ['question_answers', 'correct_index', 'session_private'];
+
 function sourceFiles(directory: string): SourceFile[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolutePath = join(directory, entry.name);
@@ -23,6 +29,26 @@ function sourceFiles(directory: string): SourceFile[] {
       source: readFileSync(absolutePath, 'utf8'),
     }];
   });
+}
+
+function importsClientCountdown(page: SourceFile, component: SourceFile): boolean {
+  const countdownImports = extractImports(page.source).filter((specifier) =>
+    resolveSpecifier(specifier, page.path) === COUNTDOWN_TIMER,
+  );
+  return countdownImports.length === 1 && isClientFile(component.source);
+}
+
+function containsHostSensitiveField(source: string): boolean {
+  const normalizedSource = source.toLowerCase();
+  return HOST_SENSITIVE_FIELDS.some((field) => normalizedSource.includes(field));
+}
+
+function actionDefinitionPaths(files: SourceFile[], actionName: string): string[] {
+  const definition = new RegExp(`\\bexport\\s+async\\s+function\\s+${actionName}\\s*\\(`);
+  return files
+    .filter((file) => !file.path.endsWith('.test.ts') && definition.test(file.source))
+    .map((file) => file.path)
+    .sort();
 }
 
 describe('session import boundaries', () => {
@@ -82,7 +108,77 @@ describe('session import boundaries', () => {
       const source = file.source.toLowerCase();
       expect(source, file.path).not.toContain('session_private');
       expect(source, file.path).not.toContain('question_answers');
+      expect(source, file.path).not.toContain('correct_index');
     }
+  });
+
+  it('detects sensitive fields in fake host page and control sources', () => {
+    expect(containsHostSensitiveField("const field = 'question_answers';")).toBe(true);
+    expect(containsHostSensitiveField("const field = 'correct_index';")).toBe(true);
+    expect(containsHostSensitiveField("const field = 'session_private';")).toBe(true);
+  });
+
+  it('keeps the scanned host page and controls free of sensitive fields', () => {
+    const hostFiles = files.filter((file) =>
+      file.path === HOST_PAGE || file.path === HOST_CONTROLS,
+    );
+    expect(hostFiles.map((file) => file.path).sort()).toEqual([HOST_PAGE, HOST_CONTROLS]);
+
+    for (const file of hostFiles) {
+      expect(containsHostSensitiveField(file.source), file.path).toBe(false);
+    }
+  });
+
+  it('requires the host page countdown import to resolve to a client component', () => {
+    const page: SourceFile = {
+      path: HOST_PAGE,
+      source: "import { CountdownTimer } from '../../../../components/countdown-timer';",
+    };
+    const clientTimer: SourceFile = {
+      path: 'src/components/countdown-timer.tsx',
+      source: "'use client';\nexport function CountdownTimer() {}",
+    };
+    const serverTimer: SourceFile = {
+      ...clientTimer,
+      source: 'export function CountdownTimer() {}',
+    };
+
+    expect(importsClientCountdown(page, clientTimer)).toBe(true);
+    expect(importsClientCountdown(page, serverTimer)).toBe(false);
+    expect(importsClientCountdown({ ...page, source: 'export const page = true;' }, clientTimer)).toBe(false);
+  });
+
+  it('uses the scanned client countdown component from the host page', () => {
+    const page = files.find((file) => file.path === HOST_PAGE);
+    const timer = files.find((file) => file.path === `${COUNTDOWN_TIMER}.tsx`);
+    expect(page).toBeDefined();
+    expect(timer).toBeDefined();
+    if (!page || !timer) throw new Error('Expected the host page and countdown component in the source scan.');
+
+    expect(importsClientCountdown(page, timer)).toBe(true);
+  });
+
+  it('detects duplicate reveal and next actions in fake sources', () => {
+    const fakeFiles: SourceFile[] = [
+      { path: HOST_ACTIONS, source: 'export async function revealAction() {}' },
+      { path: 'src/app/play/actions.ts', source: 'export async function revealAction() {}' },
+      { path: HOST_ACTIONS, source: 'export async function nextAction() {}' },
+      { path: 'src/app/play/actions.ts', source: 'export async function nextAction() {}' },
+    ];
+
+    expect(actionDefinitionPaths(fakeFiles, 'revealAction')).toEqual([
+      HOST_ACTIONS,
+      'src/app/play/actions.ts',
+    ]);
+    expect(actionDefinitionPaths(fakeFiles, 'nextAction')).toEqual([
+      HOST_ACTIONS,
+      'src/app/play/actions.ts',
+    ]);
+  });
+
+  it('keeps reveal and next action definitions only in the scanned host actions file', () => {
+    expect(actionDefinitionPaths(files, 'revealAction')).toEqual([HOST_ACTIONS]);
+    expect(actionDefinitionPaths(files, 'nextAction')).toEqual([HOST_ACTIONS]);
   });
 
   it('keeps the session event dependency query away from answer data and select all', () => {

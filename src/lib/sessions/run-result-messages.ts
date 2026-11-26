@@ -14,3 +14,17 @@ export function describeRunResult(result: RunSessionEventResult): string | null 
   }
   return 'Something went wrong. Try again.';
 }
+
+export function describeRevealResult(result: RunSessionEventResult): string | null {
+  if (!result.ok && result.reason === 'rejected' && result.error === 'wrong_state') {
+    return "The answer isn't locked in yet, or has already been revealed.";
+  }
+  return describeRunResult(result);
+}
+
+export function describeNextResult(result: RunSessionEventResult): string | null {
+  if (!result.ok && result.reason === 'rejected' && result.error === 'wrong_state') {
+    return 'Reveal the answer first, or the session has already finished.';
+  }
+  return describeRunResult(result);
+}

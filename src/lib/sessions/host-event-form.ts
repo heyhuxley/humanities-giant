@@ -12,6 +12,14 @@ export type EndSessionFormResult =
   | { ok: true; sessionId: string }
   | { ok: false; error: string };
 
+export type RevealFormResult =
+  | { ok: true; sessionId: string }
+  | { ok: false; error: string };
+
+export type NextFormResult =
+  | { ok: true; sessionId: string }
+  | { ok: false; error: string };
+
 function readUuid(formData: FormData, name: string): string | null {
   const value = formData.get(name);
   return typeof value === 'string' && UUID_PATTERN.test(value) ? value.toLowerCase() : null;
@@ -28,6 +36,24 @@ export function parseSetContestantForm(formData: FormData): SetContestantFormRes
 }
 
 export function parseStartForm(formData: FormData): StartFormResult {
+  const sessionId = readUuid(formData, 'sessionId');
+  if (sessionId === null) {
+    return { ok: false, error: 'This request is not valid. Reload the page and try again.' };
+  }
+
+  return { ok: true, sessionId };
+}
+
+export function parseRevealForm(formData: FormData): RevealFormResult {
+  const sessionId = readUuid(formData, 'sessionId');
+  if (sessionId === null) {
+    return { ok: false, error: 'This request is not valid. Reload the page and try again.' };
+  }
+
+  return { ok: true, sessionId };
+}
+
+export function parseNextForm(formData: FormData): NextFormResult {
   const sessionId = readUuid(formData, 'sessionId');
   if (sessionId === null) {
     return { ok: false, error: 'This request is not valid. Reload the page and try again.' };
