@@ -490,3 +490,16 @@ shown. It is cleared only in `waiting`.
 - Phone a friend: shows "Your friend thinks the answer is <letter>". It never says whether the friend is right. `hintIsCorrect` is never read by any player-facing code.
 - Ask the audience: shows a bar and a whole-number percentage for each option. Meaning is also in text, never in colour alone. When fewer than 3 votes were counted it shows "Not enough audience votes". Only the percentages are shown, never individual votes.
 - The safe reader returns a lifeline's result only when it was used at the current position, and never returns `hintIsCorrect`.
+
+## 20. Walk away and final result
+
+### 20.1 Walk away
+- Only the contestant can walk away, and only while the status is `revealed` (after a correct answer, before the host presses Next). The winnings are the ladder amount at the current position.
+- The contestant confirms with a second tap. The browser sends only the session id; the server finds the caller's participant id and runs the walk-away event as the contestant.
+- If the host presses Next first, the walk-away is refused with a friendly message. Whichever request reaches the server first wins. The host page tells the host that the contestant can walk away until Next is pressed.
+
+### 20.2 Final result view
+- When the status is `finished`, every screen (players and host) shows the same final view in the same page: a headline with the contestant's display name and winnings in naira, the finish reason in words, the number of questions answered correctly out of 15, the lifelines used, and, only when the game ended with a reveal, the last question with its correct option marked.
+- Questions answered correctly: the position if the last result was correct, otherwise the position minus one, and 0 when the position is 0.
+- A game that ended without a reveal shows no correct answer. Individual votes are never shown.
+- There is no separate results route.
