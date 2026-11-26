@@ -8,7 +8,7 @@ import { CountdownTimer } from '../../../components/countdown-timer';
 import { MoneyLadder } from '../../../components/money-ladder';
 import { ContestantPanel } from './contestant-panel';
 import { AudiencePanel } from './audience-panel';
-import { castVoteAction, submitAnswerAction } from './actions';
+import { castVoteAction, submitAnswerAction, useLifelineAction } from './actions';
 import { knockAction } from '../../knock/actions';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
@@ -192,7 +192,9 @@ export default async function PlayPage({
                   lastResult={publicState.lastResult}
                   status={publicState.status}
                   open={publicState.status === 'question_active'}
+                  lifelines={publicState.lifelines}
                   submitAction={submitAnswerAction}
+                  lifelineAction={useLifelineAction}
                 />
               ) : (
                 <AudiencePanel

@@ -10,6 +10,10 @@ export type VoteFormResult =
   | { ok: true; sessionId: string; option: 0 | 1 | 2 | 3 }
   | PlayerFormError;
 export type KnockFormResult = { ok: true; sessionId: string } | PlayerFormError;
+export type PlayerLifeline = 'fifty_fifty' | 'phone' | 'audience';
+export type LifelineFormResult =
+  | { ok: true; sessionId: string; lifeline: PlayerLifeline }
+  | PlayerFormError;
 
 function readSessionId(formData: FormData): string | null {
   const value = formData.get('sessionId');
@@ -33,6 +37,12 @@ function readOption(formData: FormData): 0 | 1 | 2 | 3 | null {
   }
 }
 
+function readLifeline(formData: FormData): PlayerLifeline | null {
+  const value = formData.get('lifeline');
+  if (value === 'fifty_fifty' || value === 'phone' || value === 'audience') return value;
+  return null;
+}
+
 export function parseSubmitAnswerForm(formData: FormData): SubmitAnswerFormResult {
   const sessionId = readSessionId(formData);
   const option = readOption(formData);
@@ -51,4 +61,13 @@ export function parseKnockForm(formData: FormData): KnockFormResult {
   const sessionId = readSessionId(formData);
   if (sessionId === null) return { ok: false, error: INVALID_FORM_ERROR };
   return { ok: true, sessionId };
+}
+
+export function parseLifelineForm(formData: FormData): LifelineFormResult {
+  const sessionId = readSessionId(formData);
+  const lifeline = readLifeline(formData);
+  if (sessionId === null || lifeline === null) {
+    return { ok: false, error: INVALID_FORM_ERROR };
+  }
+  return { ok: true, sessionId, lifeline };
 }

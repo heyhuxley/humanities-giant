@@ -6,6 +6,7 @@ import {
   extractImports,
   findAnswerDataFiles,
   findIdentifierFiles,
+  findForbiddenPlayerLifelineFields,
   findImportsFromDirectories,
   findImportsOfFiles,
   findUnexpectedIdentifierFiles,
@@ -27,6 +28,22 @@ const HOST_ACTIONS = 'src/app/host/sessions/[id]/actions.ts';
 const COUNTDOWN_TIMER = 'src/components/countdown-timer';
 const LIFELINE_PAYLOADS = 'src/lib/sessions/lifeline-payloads';
 const SESSION_EVENT_DEPS = 'src/lib/sessions/session-event-deps.ts';
+const PLAY_ACTIONS = 'src/app/play/[sessionId]/actions.ts';
+const CONTESTANT_PANEL = 'src/app/play/[sessionId]/contestant-panel.tsx';
+const CONTESTANT_FORBIDDEN_IMPORTS = [
+  'src/lib/supabase/admin',
+  'src/lib/sessions/session-event-deps',
+  'src/lib/sessions/run-session-event',
+  'src/lib/sessions/answer-deps',
+  'src/lib/sessions/cast-vote',
+  'src/lib/sessions/player-forms',
+  'src/lib/sessions/player-flows',
+  'src/lib/sessions/player-messages',
+  'src/lib/sessions/verified-user',
+  'src/lib/sessions/lifeline-payloads',
+  'src/lib/auth/require-host',
+  'src/app/host',
+];
 const NODE_CRYPTO_ALLOWED_FILES = [
   'src/lib/sessions/join-code.ts',
   'src/lib/sessions/session-event-deps.ts',
@@ -728,6 +745,49 @@ describe('session import boundaries', () => {
         expect(importedPath, path).not.toMatch(/^src\/lib\/auth(?:\/|$)/);
       }
     }
+  });
+
+  it('keeps lifeline results out of player facing source', () => {
+    expect(findForbiddenPlayerLifelineFields(files)).toEqual([]);
+  });
+
+  it('keeps useLifelineAction only in play actions', () => {
+    const fakeFiles: SourceFile[] = [
+      { path: PLAY_ACTIONS, source: 'export async function useLifelineAction() {}' },
+      { path: 'src/app/host/actions.ts', source: 'export async function useLifelineAction() {}' },
+    ];
+    expect(actionDefinitionPaths(fakeFiles, 'useLifelineAction')).toEqual([
+      'src/app/host/actions.ts',
+      PLAY_ACTIONS,
+    ]);
+    expect(actionDefinitionPaths(files, 'useLifelineAction')).toEqual([PLAY_ACTIONS]);
+  });
+
+  it('keeps the contestant panel free of forbidden modules', () => {
+    const fakeFiles: SourceFile[] = [{
+      path: CONTESTANT_PANEL,
+      source: [
+        "'use client';",
+        "import { lifelineFlow } from '../../../lib/sessions/player-flows';",
+        "import { runSessionEvent } from '../../../lib/sessions/run-session-event';",
+      ].join('\n'),
+    }];
+    expect(findImportsOfFiles(
+      fakeFiles,
+      ['src/app/play'],
+      CONTESTANT_FORBIDDEN_IMPORTS,
+    )).toEqual([
+      { filePath: CONTESTANT_PANEL, importedPath: 'src/lib/sessions/player-flows' },
+      { filePath: CONTESTANT_PANEL, importedPath: 'src/lib/sessions/run-session-event' },
+    ]);
+
+    const panel = files.find((file) => file.path === CONTESTANT_PANEL);
+    expect(panel).toBeDefined();
+    expect(findImportsOfFiles(
+      panel ? [panel] : [],
+      ['src/app/play'],
+      CONTESTANT_FORBIDDEN_IMPORTS,
+    )).toEqual([]);
   });
 
   it('keeps countdown helpers pure and outside React and Supabase', () => {

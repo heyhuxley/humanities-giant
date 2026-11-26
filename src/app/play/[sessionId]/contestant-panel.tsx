@@ -6,6 +6,12 @@ import { formatNaira } from '../../../lib/sessions/ladder-view';
 import { describeResult, optionStates } from '../../../lib/sessions/reveal-view';
 
 type PlayerActionState = { error: string | null };
+type LifelineName = 'fifty_fifty' | 'phone' | 'audience';
+
+type LifelineChoice = {
+  name: LifelineName;
+  label: string;
+};
 
 type Props = Readonly<{
   sessionId: string;
@@ -17,13 +23,27 @@ type Props = Readonly<{
   lastResult: 'correct' | 'wrong' | 'timeout' | null;
   status: string;
   open: boolean;
+  lifelines: {
+    fiftyFifty: { used: boolean; usedAtPosition: number | null };
+    phone: { used: boolean; usedAtPosition: number | null };
+    audience: { used: boolean; usedAtPosition: number | null };
+  };
   submitAction: (
+    prev: PlayerActionState,
+    formData: FormData,
+  ) => Promise<PlayerActionState>;
+  lifelineAction: (
     prev: PlayerActionState,
     formData: FormData,
   ) => Promise<PlayerActionState>;
 }>;
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
+const LIFELINE_CHOICES: readonly LifelineChoice[] = [
+  { name: 'fifty_fifty', label: '50:50' },
+  { name: 'phone', label: 'Phone a friend' },
+  { name: 'audience', label: 'Ask the audience' },
+];
 
 export function ContestantPanel({
   sessionId,
@@ -35,20 +55,36 @@ export function ContestantPanel({
   lastResult,
   status,
   open,
+  lifelines,
   submitAction,
+  lifelineAction,
 }: Props) {
   const [tentative, setTentative] = useState<Option | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [selectedLifeline, setSelectedLifeline] = useState<LifelineChoice | null>(null);
   const [locallyExpired, setLocallyExpired] = useState(false);
   const [actionState, formAction, pending] = useActionState(submitAnswer, {
     error: null,
   });
+  const [lifelineActionState, lifelineFormAction, lifelinePending] = useActionState(
+    submitLifeline,
+    { error: null },
+  );
 
   async function submitAnswer(
     _previous: PlayerActionState,
     formData: FormData,
   ): Promise<PlayerActionState> {
     return submitAction(_previous, formData);
+  }
+
+  async function submitLifeline(
+    previous: PlayerActionState,
+    formData: FormData,
+  ): Promise<PlayerActionState> {
+    const result = await lifelineAction(previous, formData);
+    if (result.error === null) setSelectedLifeline(null);
+    return result;
   }
 
   useEffect(() => {
@@ -81,6 +117,72 @@ export function ContestantPanel({
         </p>
       ) : null}
       <h2 className="text-lg font-semibold">{question.text}</h2>
+      {selectedLifeline === null ? (
+        <div className="grid grid-cols-3 gap-2">
+          {LIFELINE_CHOICES.map((choice) => {
+            const used = lifelines[
+              choice.name === 'fifty_fifty' ? 'fiftyFifty' : choice.name
+            ].used;
+            const lifelineDisabled = used ||
+              !effectiveOpen ||
+              lockedAnswer !== null ||
+              pending ||
+              lifelinePending;
+            return (
+              <button
+                key={choice.name}
+                type="button"
+                disabled={lifelineDisabled}
+                aria-disabled={lifelineDisabled}
+                onClick={() => setSelectedLifeline(choice)}
+                className="min-h-11 rounded-lg border border-stone-300 bg-white px-2 py-2 font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {choice.label}
+                {used ? (
+                  <span className="ml-1 inline-flex items-center gap-1">
+                    <span aria-hidden="true">✗</span>
+                    <span>Used</span>
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div
+          role="alert"
+          className="space-y-2 rounded-lg border border-stone-300 p-3"
+        >
+          <p>Use {selectedLifeline.label}?</p>
+          <form action={lifelineFormAction} className="flex gap-2">
+            <input type="hidden" name="sessionId" value={sessionId} />
+            <input type="hidden" name="lifeline" value={selectedLifeline.name} />
+            <button
+              type="submit"
+              disabled={
+                pending ||
+                lifelinePending ||
+                !effectiveOpen ||
+                lockedAnswer !== null
+              }
+              className="min-h-11 flex-1 rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Confirm
+            </button>
+            <button
+              type="button"
+              disabled={lifelinePending}
+              onClick={() => setSelectedLifeline(null)}
+              className="min-h-11 flex-1 rounded-lg border border-stone-300 px-4 py-3 font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Cancel
+            </button>
+          </form>
+        </div>
+      )}
+      {lifelineActionState.error ? (
+        <p role="alert" className="text-red-700">{lifelineActionState.error}</p>
+      ) : null}
       <div className="grid gap-2">
         {question.options.map((option, index) => {
           const optionIndex = index as Option;

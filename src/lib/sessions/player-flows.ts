@@ -2,11 +2,21 @@ import 'server-only';
 
 import type { Option } from '../../game';
 import type { CastVoteResult } from './cast-vote';
-import type { RunnableEvent, RunSessionEventResult } from './run-session-event';
+import type {
+  LifelineRequest,
+  RunnableEvent,
+  RunSessionEventResult,
+} from './run-session-event';
+import type { PlayerLifeline } from './player-forms';
 
 type OptionIndex = 0 | 1 | 2 | 3;
 
 export type SubmitAnswerDependencies = {
+  findParticipantId(sessionId: string, userId: string): Promise<string | null>;
+  run(event: RunnableEvent): Promise<RunSessionEventResult>;
+};
+
+export type LifelineDependencies = {
   findParticipantId(sessionId: string, userId: string): Promise<string | null>;
   run(event: RunnableEvent): Promise<RunSessionEventResult>;
 };
@@ -45,6 +55,26 @@ export async function submitAnswerFlow(
     return await deps.run({ type: 'lock_in', actor });
   } catch {
     logFailure('submit_answer_dependency_failure');
+    return { ok: false, reason: 'unknown' };
+  }
+}
+
+export async function lifelineFlow(
+  deps: LifelineDependencies,
+  input: { userId: string; sessionId: string; lifeline: PlayerLifeline },
+): Promise<RunSessionEventResult> {
+  try {
+    const participantId = await deps.findParticipantId(input.sessionId, input.userId);
+    if (participantId === null) return { ok: false, reason: 'not_found' };
+
+    const event: LifelineRequest = {
+      type: 'use_lifeline',
+      actor: { id: participantId, role: 'contestant' },
+      lifeline: input.lifeline,
+    };
+    return await deps.run(event);
+  } catch {
+    logFailure('use_lifeline_dependency_failure');
     return { ok: false, reason: 'unknown' };
   }
 }

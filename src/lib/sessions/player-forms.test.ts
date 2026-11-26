@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   parseKnockForm,
+  parseLifelineForm,
   parseSubmitAnswerForm,
   parseVoteForm,
 } from './player-forms';
@@ -124,5 +125,68 @@ describe('parseKnockForm', () => {
       actorId: 'untrusted',
       event: 'start',
     }))).toMatchObject({ ok: true });
+  });
+});
+
+describe('parseLifelineForm', () => {
+  it.each(['fifty_fifty', 'phone', 'audience'] as const)(
+    'accepts the %s lifeline',
+    (lifeline) => {
+      expect(parseLifelineForm(makeForm({ sessionId: SESSION_ID, lifeline }))).toEqual({
+        ok: true,
+        sessionId: SESSION_ID.toLowerCase(),
+        lifeline,
+      });
+    },
+  );
+
+  it('returns an uppercase UUID in lowercase', () => {
+    expect(parseLifelineForm(makeForm({
+      sessionId: SESSION_ID,
+      lifeline: 'phone',
+    }))).toMatchObject({ ok: true, sessionId: SESSION_ID.toLowerCase() });
+  });
+
+  it.each([
+    ['missing session id', makeForm({ lifeline: 'phone' })],
+    ['missing lifeline', makeForm({ sessionId: SESSION_ID })],
+    ['both fields', makeForm()],
+    ['invalid session id', makeForm({ sessionId: 'not-a-uuid', lifeline: 'phone' })],
+  ])('rejects %s', (_label, formData) => {
+    expect(parseLifelineForm(formData)).toMatchObject({ ok: false });
+  });
+
+  it.each(['sessionId', 'lifeline'])('rejects a File value for %s', (field) => {
+    const formData = new FormData();
+    formData.append('sessionId', SESSION_ID);
+    formData.append('lifeline', 'phone');
+    formData.delete(field);
+    formData.append(field, new Blob(['not a string']), 'field.txt');
+    expect(parseLifelineForm(formData)).toMatchObject({ ok: false });
+  });
+
+  it.each(['FIFTY_FIFTY', ' phone', '50:50', '', 'fiftyFifty'])(
+    'rejects malformed lifeline %j',
+    (lifeline) => {
+      expect(parseLifelineForm(makeForm({ sessionId: SESSION_ID, lifeline })))
+        .toMatchObject({ ok: false });
+    },
+  );
+
+  it('ignores extra fields without echoing them', () => {
+    const result = parseLifelineForm(makeForm({
+      sessionId: SESSION_ID,
+      lifeline: 'fifty_fifty',
+      remove: '0,1',
+      hint: '2',
+      voteCounts: '1,2,3,4',
+      correctIndex: '2',
+    }));
+
+    expect(result).toEqual({
+      ok: true,
+      sessionId: SESSION_ID.toLowerCase(),
+      lifeline: 'fifty_fifty',
+    });
   });
 });

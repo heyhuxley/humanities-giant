@@ -74,6 +74,45 @@ export function findUnexpectedIdentifierFiles(
   return findIdentifierFiles(files, identifier).filter((filePath) => !allowed.has(filePath));
 }
 
+export function findForbiddenPlayerLifelineFields(
+  files: { path: string; source: string }[],
+): string[] {
+  const fieldNames = [
+    'hintIsCorrect',
+    'removed',
+    'hint',
+    'percentages',
+    'notEnoughVotes',
+    'voteCounts',
+  ];
+  const checkedPaths = [
+    'src/lib/sessions/read-public-state.ts',
+    'src/lib/sessions/player-flows.ts',
+    'src/lib/sessions/player-forms.ts',
+    'src/lib/sessions/player-messages.ts',
+  ];
+
+  return files
+    .filter((file) => !isTestFile(file.path) && /\.(?:ts|tsx)$/i.test(file.path))
+    .filter((file) =>
+      isUnder(normalizedPath(file.path), 'src/app/play') ||
+      isUnder(normalizedPath(file.path), 'src/components') ||
+      checkedPaths.includes(normalizedPath(file.path)),
+    )
+    .flatMap((file) => fieldNames
+      .filter((fieldName) => {
+        const escaped = escapeRegExp(fieldName);
+        const fieldPattern = new RegExp(
+          `(?:\\.\\s*${escaped}\\b|\\b${escaped}\\s*\\??\\s*:|` +
+            `['"]${escaped}['"]\\s*:|\\[\\s*['"]${escaped}['"]\\s*\\]|` +
+            `[,{]\\s*${escaped}\\s*(?=[,}\\s]))`,
+        );
+        return fieldPattern.test(file.source);
+      })
+      .map((fieldName) => `${normalizedPath(file.path)}:${fieldName}`))
+    .sort();
+}
+
 export function findImportsFromDirectories(
   files: { path: string; source: string }[],
   importerDirectories: string[],

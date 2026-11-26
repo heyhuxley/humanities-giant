@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   checkBoundaries,
   extractImports,
+  findForbiddenPlayerLifelineFields,
   findIdentifierFiles,
   findImportsFromDirectories,
   findImportsOfFiles,
@@ -100,6 +101,29 @@ describe('isClientFile', () => {
 });
 
 describe('hardening helpers', () => {
+  it('finds lifeline result fields in player facing fake sources, but not prose', () => {
+    const fakeSources = [
+      { path: 'src/app/play/unsafe.tsx', source: 'state.hintIsCorrect' },
+      { path: 'src/components/unsafe.tsx', source: 'const { removed } = state;' },
+      { path: 'src/lib/sessions/read-public-state.ts', source: 'const value = { percentages: [] };' },
+      { path: 'src/lib/sessions/player-flows.ts', source: "const value = { 'hint': 1 };" },
+      { path: 'src/lib/sessions/player-forms.ts', source: 'const key = ["voteCounts"];' },
+      { path: 'src/lib/sessions/player-messages.ts', source: 'const value = { notEnoughVotes: true };' },
+      { path: 'src/app/play/copy.tsx', source: '// hint and percentages are not shown' },
+      { path: 'src/app/play/copy.test.ts', source: 'state.hintIsCorrect' },
+      { path: 'src/lib/sessions/unrelated.ts', source: 'state.hintIsCorrect' },
+    ];
+
+    expect(findForbiddenPlayerLifelineFields(fakeSources)).toEqual([
+      'src/app/play/unsafe.tsx:hintIsCorrect',
+      'src/components/unsafe.tsx:removed',
+      'src/lib/sessions/player-flows.ts:hint',
+      'src/lib/sessions/player-forms.ts:voteCounts',
+      'src/lib/sessions/player-messages.ts:notEnoughVotes',
+      'src/lib/sessions/read-public-state.ts:percentages',
+    ]);
+  });
+
   it('matches only the exact votes read chain', () => {
     const sessionId = 'sessionId';
     const position = 'position';

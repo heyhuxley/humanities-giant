@@ -1,9 +1,45 @@
 import { describe, expect, it } from 'vitest';
 import {
+  describeLifelineResult,
   describeKnockOutcome,
   describeSubmitResult,
 } from './player-messages';
 import type { RunSessionEventResult } from './run-session-event';
+
+describe('describeLifelineResult', () => {
+  it('returns null on success', () => {
+    expect(describeLifelineResult({ ok: true, version: 1 })).toBeNull();
+  });
+
+  it('maps not found', () => {
+    expect(describeLifelineResult({ ok: false, reason: 'not_found' }))
+      .toBe('You are not part of this session.');
+  });
+
+  it.each([
+    ['lifeline_used', 'You have already used that lifeline.'],
+    ['not_allowed', 'Only the contestant can use lifelines.'],
+    ['deadline_passed', 'Time is up.'],
+    ['wrong_state', 'Lifelines can only be used while a question is open.'],
+    ['nothing_selected', 'Could not use the lifeline. Try again.'],
+  ] as const)('maps rejected %s', (error, message) => {
+    const result: RunSessionEventResult = { ok: false, reason: 'rejected', error };
+    expect(describeLifelineResult(result)).toBe(message);
+  });
+
+  it('maps conflict', () => {
+    expect(describeLifelineResult({ ok: false, reason: 'conflict' }))
+      .toBe('Another update happened at the same time. Try again.');
+  });
+
+  it.each(['unknown', 'participant_not_found', 'unsafe_state'] as const)(
+    'maps %s to the generic failure',
+    (reason) => {
+      const result: RunSessionEventResult = { ok: false, reason };
+      expect(describeLifelineResult(result)).toBe('Could not use the lifeline. Try again.');
+    },
+  );
+});
 
 describe('describeSubmitResult', () => {
   it('returns null on success', () => {

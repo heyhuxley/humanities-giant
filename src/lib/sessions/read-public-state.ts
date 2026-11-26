@@ -16,6 +16,17 @@ export type PublicFinishReason =
   | 'walked_away'
   | 'ended_by_host';
 
+export type PublicLifelineUsage = {
+  used: boolean;
+  usedAtPosition: number | null;
+};
+
+export type PublicLifelines = {
+  fiftyFifty: PublicLifelineUsage;
+  phone: PublicLifelineUsage;
+  audience: PublicLifelineUsage;
+};
+
 export type SafePublicState = {
   status: PublicStatus;
   winnings: number | null;
@@ -27,6 +38,7 @@ export type SafePublicState = {
   lockedAnswer: Option | null;
   correctIndex: Option | null;
   lastResult: LastResult;
+  lifelines: PublicLifelines;
 };
 
 const STATUSES: ReadonlySet<PublicStatus> = new Set([
@@ -67,6 +79,29 @@ function isLockedAnswer(value: unknown): value is Option {
 
 function isLastResult(value: unknown): value is Exclude<LastResult, null> {
   return value === 'correct' || value === 'wrong' || value === 'timeout';
+}
+
+function readLifelineUsage(value: unknown): PublicLifelineUsage {
+  if (!isRecord(value)) return { used: false, usedAtPosition: null };
+  return {
+    used: value.used === true,
+    usedAtPosition: isPosition(value.usedAtPosition) ? value.usedAtPosition : null,
+  };
+}
+
+function readLifelines(value: unknown): PublicLifelines {
+  if (!isRecord(value)) {
+    return {
+      fiftyFifty: readLifelineUsage(null),
+      phone: readLifelineUsage(null),
+      audience: readLifelineUsage(null),
+    };
+  }
+  return {
+    fiftyFifty: readLifelineUsage(value.fiftyFifty),
+    phone: readLifelineUsage(value.phone),
+    audience: readLifelineUsage(value.audience),
+  };
 }
 
 export function readPublicState(value: unknown): SafePublicState | null {
@@ -119,6 +154,7 @@ export function readPublicState(value: unknown): SafePublicState | null {
     lockedAnswer,
     correctIndex,
     lastResult,
+    lifelines: readLifelines(value.lifelines),
   };
 }
 

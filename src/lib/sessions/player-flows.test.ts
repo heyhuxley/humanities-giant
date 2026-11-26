@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   knockFlow,
+  lifelineFlow,
   submitAnswerFlow,
   voteFlow,
   type KnockDependencies,
+  type LifelineDependencies,
   type SubmitAnswerDependencies,
 } from './player-flows';
 import type { RunSessionEventResult } from './run-session-event';
@@ -17,6 +19,11 @@ const input = {
   option: 2 as const,
 };
 const participantId = 'private-participant-id-615';
+const lifelineInput = {
+  userId: input.userId,
+  sessionId: input.sessionId,
+  lifeline: 'fifty_fifty' as const,
+};
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -105,6 +112,84 @@ describe('submitAnswerFlow', () => {
         ok: false,
         reason: 'unknown',
       });
+      expect(JSON.stringify(log.mock.calls)).not.toContain(input.userId);
+      expect(JSON.stringify(log.mock.calls)).not.toContain(input.sessionId);
+      expect(JSON.stringify(log.mock.calls)).not.toContain(participantId);
+    },
+  );
+});
+
+function lifelineDeps(
+  run: LifelineDependencies['run'] = vi.fn(async () => ({ ok: true as const, version: 3 })),
+  findParticipantId: LifelineDependencies['findParticipantId'] = vi.fn(async () => participantId),
+): LifelineDependencies {
+  return { findParticipantId, run };
+}
+
+describe('lifelineFlow', () => {
+  it.each(['fifty_fifty', 'phone', 'audience'] as const)(
+    'sends exactly one request for %s using the participant actor',
+    async (lifeline) => {
+      const run = vi.fn<LifelineDependencies['run']>().mockResolvedValue({
+        ok: true,
+        version: 3,
+      });
+
+      await expect(lifelineFlow(lifelineDeps(run), { ...lifelineInput, lifeline }))
+        .resolves.toEqual({ ok: true, version: 3 });
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(run.mock.calls.map(([event]) => event)).toEqual([{
+        type: 'use_lifeline',
+        actor: { id: participantId, role: 'contestant' },
+        lifeline,
+      }]);
+      expect(JSON.stringify(run.mock.calls)).not.toContain(input.userId);
+    },
+  );
+
+  it('passes every runner result through unchanged', async () => {
+    const results = [
+      { ok: true, version: 3 },
+      { ok: false, reason: 'rejected', error: 'lifeline_used' },
+      { ok: false, reason: 'rejected', error: 'not_allowed' },
+      { ok: false, reason: 'rejected', error: 'wrong_state' },
+      { ok: false, reason: 'rejected', error: 'deadline_passed' },
+      { ok: false, reason: 'conflict' },
+      { ok: false, reason: 'unknown' },
+    ] satisfies RunSessionEventResult[];
+
+    for (const result of results) {
+      const run = vi.fn<LifelineDependencies['run']>().mockResolvedValue(result);
+      await expect(lifelineFlow(lifelineDeps(run), lifelineInput)).resolves.toBe(result);
+      expect(run).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('does not run when participant lookup returns null', async () => {
+    const run = vi.fn<LifelineDependencies['run']>();
+    const findParticipantId = vi.fn(async () => null);
+
+    await expect(lifelineFlow(
+      lifelineDeps(run, findParticipantId),
+      lifelineInput,
+    )).resolves.toEqual({ ok: false, reason: 'not_found' });
+    expect(findParticipantId).toHaveBeenCalledWith(input.sessionId, input.userId);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it.each(['findParticipantId', 'run'] as const)(
+    'returns unknown for a thrown %s dependency and logs no identifiers',
+    async (dependency) => {
+      const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const deps = dependency === 'findParticipantId'
+        ? lifelineDeps(undefined, vi.fn(async () => { throw new Error('private'); }))
+        : lifelineDeps(vi.fn(async () => { throw new Error('private'); }));
+
+      await expect(lifelineFlow(deps, lifelineInput)).resolves.toEqual({
+        ok: false,
+        reason: 'unknown',
+      });
+      expect(log).toHaveBeenCalledWith('use_lifeline_dependency_failure');
       expect(JSON.stringify(log.mock.calls)).not.toContain(input.userId);
       expect(JSON.stringify(log.mock.calls)).not.toContain(input.sessionId);
       expect(JSON.stringify(log.mock.calls)).not.toContain(participantId);

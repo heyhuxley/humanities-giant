@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { readCurrentQuestion, readPublicState } from './read-public-state';
 
+const UNUSED_LIFELINES = {
+  fiftyFifty: { used: false, usedAtPosition: null },
+  phone: { used: false, usedAtPosition: null },
+  audience: { used: false, usedAtPosition: null },
+};
+
 describe('readPublicState', () => {
   it('reads a valid waiting state', () => {
     expect(readPublicState({
@@ -18,6 +24,7 @@ describe('readPublicState', () => {
       lockedAnswer: null,
       correctIndex: null,
       lastResult: null,
+      lifelines: UNUSED_LIFELINES,
     });
   });
 
@@ -53,6 +60,7 @@ describe('readPublicState', () => {
       lockedAnswer: null,
       correctIndex: null,
       lastResult: null,
+      lifelines: UNUSED_LIFELINES,
     });
     expect(result).not.toHaveProperty('selectedAnswer');
     expect(question).toEqual({
@@ -79,7 +87,117 @@ describe('readPublicState', () => {
       lockedAnswer: null,
       correctIndex: null,
       lastResult: null,
+      lifelines: UNUSED_LIFELINES,
     });
+  });
+
+  it.each(['waiting', 'question_active', 'locked', 'revealed', 'finished'] as const)(
+    'returns lifeline usage in %s',
+    (status) => {
+      expect(readPublicState({
+        status,
+        winnings: null,
+        finishReason: null,
+      })?.lifelines).toEqual(UNUSED_LIFELINES);
+    },
+  );
+
+  it('reads all three used lifelines and their positions', () => {
+    expect(readPublicState({
+      status: 'question_active',
+      winnings: null,
+      finishReason: null,
+      lifelines: {
+        fiftyFifty: { used: true, usedAtPosition: 2, removed: [0, 1] },
+        phone: { used: true, usedAtPosition: 5, hint: 2, hintIsCorrect: true },
+        audience: {
+          used: true,
+          usedAtPosition: 10,
+          percentages: [25, 25, 25, 25],
+          notEnoughVotes: false,
+        },
+      },
+    })?.lifelines).toEqual({
+      fiftyFifty: { used: true, usedAtPosition: 2 },
+      phone: { used: true, usedAtPosition: 5 },
+      audience: { used: true, usedAtPosition: 10 },
+    });
+  });
+
+  it('reads mixed lifeline usage', () => {
+    expect(readPublicState({
+      status: 'question_active',
+      winnings: null,
+      finishReason: null,
+      lifelines: {
+        fiftyFifty: { used: true, usedAtPosition: 1 },
+        phone: { used: false, usedAtPosition: null },
+        audience: { used: true, usedAtPosition: 15 },
+      },
+    })?.lifelines).toEqual({
+      fiftyFifty: { used: true, usedAtPosition: 1 },
+      phone: { used: false, usedAtPosition: null },
+      audience: { used: true, usedAtPosition: 15 },
+    });
+  });
+
+  it.each(['true', 1])('rejects non boolean used value %s', (used) => {
+    expect(readPublicState({
+      status: 'waiting',
+      winnings: null,
+      finishReason: null,
+      lifelines: {
+        fiftyFifty: { used, usedAtPosition: 3 },
+      },
+    })?.lifelines.fiftyFifty).toEqual({ used: false, usedAtPosition: 3 });
+  });
+
+  it.each([0, 16, 1.5, '3'])(
+    'rejects malformed lifeline position %s',
+    (usedAtPosition) => {
+      expect(readPublicState({
+        status: 'waiting',
+        winnings: null,
+        finishReason: null,
+        lifelines: {
+          fiftyFifty: { used: true, usedAtPosition },
+        },
+      })?.lifelines.fiftyFifty).toEqual({ used: true, usedAtPosition: null });
+    },
+  );
+
+  it.each([undefined, null, [], 'invalid'])(
+    'defaults missing or non object lifelines %s',
+    (lifelines) => {
+      expect(readPublicState({
+        status: 'waiting',
+        winnings: null,
+        finishReason: null,
+        lifelines,
+      })?.lifelines).toEqual(UNUSED_LIFELINES);
+    },
+  );
+
+  it('never returns stored lifeline results', () => {
+    const result = readPublicState({
+      status: 'question_active',
+      winnings: null,
+      finishReason: null,
+      lifelines: {
+        fiftyFifty: { used: true, usedAtPosition: 3, removed: [0, 2] },
+        phone: { used: true, usedAtPosition: 4, hint: 1, hintIsCorrect: true },
+        audience: {
+          used: true,
+          usedAtPosition: 5,
+          percentages: [10, 20, 30, 40],
+          notEnoughVotes: true,
+        },
+      },
+    });
+    const serialized = JSON.stringify(result);
+    for (const key of ['removed', 'hint', 'hintIsCorrect', 'percentages', 'notEnoughVotes']) {
+      expect(serialized).not.toContain(key);
+    }
   });
 
   it('reads a valid locked answer', () => {
