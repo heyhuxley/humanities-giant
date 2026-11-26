@@ -10,9 +10,23 @@ import {
   type SessionState,
 } from '../../game';
 import { buildCurrentQuestion, type CurrentQuestion } from './current-question';
+import {
+  buildFiftyFifty,
+  buildPhoneHint,
+  maskRemovedVotes,
+  toVoteCounts,
+} from './lifeline-payloads';
 
 export type RevealRequest = Omit<Extract<GameEvent, { type: 'reveal' }>, 'correctIndex'>;
-export type RunnableEvent = Exclude<GameEvent, { type: 'reveal' }> | RevealRequest;
+type EngineLifeline = Extract<GameEvent, { type: 'use_lifeline' }>['lifeline'];
+export type LifelineRequest = Omit<
+  Extract<GameEvent, { type: 'use_lifeline' }>,
+  'lifeline'
+> & { lifeline: EngineLifeline['lifeline'] };
+export type RunnableEvent =
+  | Exclude<GameEvent, { type: 'reveal' | 'use_lifeline' }>
+  | RevealRequest
+  | LifelineRequest;
 
 export type RunSessionEventDeps = {
   loadSession(sessionId: string): Promise<{
@@ -23,6 +37,8 @@ export type RunSessionEventDeps = {
   } | null>;
   loadQuestionAt(sessionId: string, position: number): Promise<unknown | null>;
   loadCorrectIndex(sessionId: string, position: number): Promise<Option | null>;
+  loadVotes(sessionId: string, position: number): Promise<unknown>;
+  randomInt(max: number): number;
   commit(args: {
     p_session_id: string;
     p_expected_version: number;
@@ -71,9 +87,8 @@ export async function runSessionEvent(
         console.error('run_session_event_invalid_engine_state');
         return { ok: false, reason: 'unknown' };
       }
-
       const state = session.engineState as SessionState;
-      let event: GameEvent;
+      let newState: SessionState;
       if (input.event.type === 'reveal') {
         if (state.status !== 'locked') {
           return { ok: false, reason: 'rejected', error: 'wrong_state' };
@@ -83,17 +98,98 @@ export async function runSessionEvent(
           state.position,
         );
         if (correctIndex === null) return { ok: false, reason: 'unknown' };
-        event = { type: 'reveal', actor: input.event.actor, correctIndex };
+        const transition = applyEvent(
+          state,
+          { type: 'reveal', actor: input.event.actor, correctIndex },
+          deps.now(),
+        );
+        if (!transition.ok) {
+          return { ok: false, reason: 'rejected', error: transition.error };
+        }
+        newState = transition.state;
+      } else if (input.event.type === 'use_lifeline') {
+        const now = deps.now();
+        const dryEvent: GameEvent = {
+          type: 'use_lifeline',
+          actor: input.event.actor,
+          lifeline: input.event.lifeline === 'fifty_fifty'
+            ? { lifeline: 'fifty_fifty', remove: [0, 1] }
+            : input.event.lifeline === 'phone'
+              ? { lifeline: 'phone', hint: 0, hintIsCorrect: false }
+              : { lifeline: 'audience', voteCounts: [0, 0, 0, 0] },
+        };
+        const dryRun = applyEvent(state, dryEvent, now);
+        if (!dryRun.ok) {
+          return { ok: false, reason: 'rejected', error: dryRun.error };
+        }
+
+        const storedFiftyFifty = state.lifelines.fiftyFifty;
+        const removed =
+          storedFiftyFifty.used && storedFiftyFifty.usedAtPosition === state.position
+            ? storedFiftyFifty.removed
+            : null;
+
+        let event: GameEvent;
+        switch (input.event.lifeline) {
+          case 'fifty_fifty': {
+            const correctIndex = await deps.loadCorrectIndex(input.sessionId, state.position);
+            if (correctIndex === null) return { ok: false, reason: 'unknown' };
+            event = {
+              type: 'use_lifeline',
+              actor: input.event.actor,
+              lifeline: {
+                lifeline: 'fifty_fifty',
+                remove: buildFiftyFifty(correctIndex, deps.randomInt),
+              },
+            };
+            break;
+          }
+          case 'phone': {
+            const correctIndex = await deps.loadCorrectIndex(input.sessionId, state.position);
+            if (correctIndex === null) return { ok: false, reason: 'unknown' };
+            const hint = buildPhoneHint({
+              correctIndex,
+              removed,
+              randomInt: deps.randomInt,
+            });
+            event = {
+              type: 'use_lifeline',
+              actor: input.event.actor,
+              lifeline: { lifeline: 'phone', ...hint },
+            };
+            break;
+          }
+          case 'audience': {
+            const counts = toVoteCounts(await deps.loadVotes(input.sessionId, state.position));
+            event = {
+              type: 'use_lifeline',
+              actor: input.event.actor,
+              lifeline: {
+                lifeline: 'audience',
+                voteCounts: maskRemovedVotes(counts, removed),
+              },
+            };
+            break;
+          }
+          default:
+            console.error('run_session_event_invalid_lifeline_request');
+            return { ok: false, reason: 'unknown' };
+        }
+
+        const transition = applyEvent(state, event, now);
+        if (!transition.ok) {
+          console.error('run_session_event_lifeline_real_rejected');
+          return { ok: false, reason: 'unknown' };
+        }
+        newState = transition.state;
       } else {
-        event = input.event;
+        const transition = applyEvent(state, input.event, deps.now());
+        if (!transition.ok) {
+          return { ok: false, reason: 'rejected', error: transition.error };
+        }
+        newState = transition.state;
       }
 
-      const transition = applyEvent(state, event, deps.now());
-      if (!transition.ok) {
-        return { ok: false, reason: 'rejected', error: transition.error };
-      }
-
-      const newState = transition.state;
       const publicState = toPublicState(newState);
       let currentQuestion: CurrentQuestion | null = null;
 

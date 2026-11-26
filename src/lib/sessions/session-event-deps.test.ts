@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { randomInt as cryptoRandomInt } from 'node:crypto';
 import {
   createRunSessionEventDeps,
   toLoadedSession,
@@ -6,8 +7,9 @@ import {
 } from './session-event-deps';
 
 vi.mock('server-only', () => ({}));
+const admin = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
 vi.mock('../supabase/admin', () => ({
-  createAdminClient: () => ({ from: vi.fn(), rpc: vi.fn() }),
+  createAdminClient: () => admin,
 }));
 
 const engineState = { status: 'waiting' };
@@ -110,11 +112,50 @@ describe('toQuestionRow', () => {
 });
 
 describe('createRunSessionEventDeps', () => {
+  function mockVotesQuery(result: { data: unknown; error: unknown }) {
+    const eq = vi.fn();
+    const query = { eq };
+    eq.mockImplementationOnce(() => query).mockImplementationOnce(async () => result);
+    const select = vi.fn(() => query);
+    admin.from.mockReturnValue({ select });
+    return { select, eq };
+  }
+
   it('uses the injected answer dependency', async () => {
     const loadCorrectIndex = vi.fn(async () => 2 as const);
     const deps = createRunSessionEventDeps({ loadCorrectIndex });
 
     await expect(deps.loadCorrectIndex('session-id', 4)).resolves.toBe(2);
     expect(loadCorrectIndex).toHaveBeenCalledWith('session-id', 4);
+  });
+
+  it('selects only the option column and returns vote rows unchanged', async () => {
+    const rows = [{ option_index: 2 }, { option_index: 3 }];
+    const query = mockVotesQuery({ data: rows, error: null });
+    const deps = createRunSessionEventDeps({ loadCorrectIndex: async () => null });
+
+    await expect(deps.loadVotes('session-id', 7)).resolves.toBe(rows);
+    expect(admin.from).toHaveBeenCalledWith('votes');
+    expect(query.select).toHaveBeenCalledOnce();
+    expect(query.select).toHaveBeenCalledWith('option_index');
+    expect(query.eq).toHaveBeenNthCalledWith(1, 'session_id', 'session-id');
+    expect(query.eq).toHaveBeenNthCalledWith(2, 'position', 7);
+  });
+
+  it('reduces vote query errors to a fixed message', async () => {
+    mockVotesQuery({
+      data: null,
+      error: { message: 'private database error' },
+    });
+    const deps = createRunSessionEventDeps({ loadCorrectIndex: async () => null });
+
+    await expect(deps.loadVotes('session-id', 7)).rejects.toMatchObject({
+      message: 'run_session_event_votes_query_failure',
+    });
+  });
+
+  it('uses the node crypto random integer function', () => {
+    const deps = createRunSessionEventDeps({ loadCorrectIndex: async () => null });
+    expect(deps.randomInt).toBe(cryptoRandomInt);
   });
 });

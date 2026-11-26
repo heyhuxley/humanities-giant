@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { randomInt as cryptoRandomInt } from 'node:crypto';
 import { createAdminClient } from '../supabase/admin';
 import { createAnswerDeps } from './answer-deps';
 import type { RunSessionEventDeps } from './run-session-event';
@@ -111,6 +112,16 @@ export function createRunSessionEventDeps(
       return toQuestionRow(data);
     },
     loadCorrectIndex: answerDeps.loadCorrectIndex,
+    async loadVotes(sessionId, position) {
+      const { data, error } = await admin
+        .from('votes')
+        .select('option_index')
+        .eq('session_id', sessionId)
+        .eq('position', position);
+      if (error) throw new Error('run_session_event_votes_query_failure');
+      return data;
+    },
+    randomInt: cryptoRandomInt,
     async commit(args) {
       const { data, error } = await admin.rpc('commit_transition', args);
       return {

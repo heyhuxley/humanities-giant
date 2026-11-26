@@ -7,6 +7,7 @@ import {
 } from '../../game';
 import {
   runSessionEvent,
+  type LifelineRequest,
   type RunnableEvent,
   type RunSessionEventDeps,
 } from './run-session-event';
@@ -51,10 +52,30 @@ function makeDeps(
     })),
     loadQuestionAt: vi.fn(async () => question),
     loadCorrectIndex: vi.fn(async () => 0 as const),
+    loadVotes: vi.fn(async () => []),
+    randomInt: vi.fn(() => 0),
     commit: vi.fn(async () => ({ data: 8, error: null })),
     now: vi.fn(() => 100),
     ...overrides,
   };
+}
+
+function activeState(overrides: Partial<SessionState> = {}): SessionState {
+  return {
+    ...createInitialState(),
+    status: 'question_active',
+    position: 4,
+    contestantId: participantId,
+    questionEndsAt: 200,
+    ...overrides,
+  };
+}
+
+function lifelineRequest(
+  lifeline: LifelineRequest['lifeline'],
+  actor: LifelineRequest['actor'] = { id: participantId, role: 'contestant' },
+): LifelineRequest {
+  return makeEvent({ type: 'use_lifeline', actor, lifeline });
 }
 
 async function expectFinishedQuestionCommit(
@@ -430,23 +451,407 @@ describe('runSessionEvent', () => {
       type: 'walk_away',
       actor: { id: participantId, role: 'contestant' },
     }],
-    ['use_lifeline', {
-      ...createInitialState(),
-      status: 'question_active',
-      position: 1,
-      questionEndsAt: 200,
-      contestantId: participantId,
-    }, {
-      type: 'use_lifeline',
-      actor: { id: participantId, role: 'contestant' },
-      lifeline: { lifeline: 'phone', hint: 2, hintIsCorrect: true },
-    }],
   ])('%s never loads the correct answer', async (_name, state, event) => {
     const deps = makeDeps(state);
 
     await runSessionEvent(deps, { sessionId, event: event as RunnableEvent });
 
     expect(deps.loadCorrectIndex).not.toHaveBeenCalled();
+    expect(deps.loadVotes).not.toHaveBeenCalled();
+    expect(deps.randomInt).not.toHaveBeenCalled();
+    expect(deps.now).toHaveBeenCalledOnce();
+  });
+
+  it('builds and commits a 50:50 payload after a passing dry run', async () => {
+    const state = activeState();
+    const loadCorrectIndex = vi.fn(async () => 2 as const);
+    const randomInt = vi.fn(() => 0);
+    const loadVotes = vi.fn(async () => [{ option_index: 0 }]);
+    const deps = makeDeps(state, { loadCorrectIndex, randomInt, loadVotes });
+
+    await expect(runSessionEvent(deps, {
+      sessionId,
+      event: lifelineRequest('fifty_fifty'),
+    })).resolves.toEqual({ ok: true, version: 8 });
+
+    expect(loadCorrectIndex).toHaveBeenCalledOnce();
+    expect(loadCorrectIndex).toHaveBeenCalledWith(sessionId, state.position);
+    expect(randomInt).toHaveBeenCalledOnce();
+    expect(randomInt).toHaveBeenCalledWith(3);
+    expect(loadVotes).not.toHaveBeenCalled();
+    const committed = vi.mocked(deps.commit).mock.calls[0][0];
+    const fiftyFifty = committed.p_engine_state.lifelines.fiftyFifty;
+    expect(fiftyFifty.used).toBe(true);
+    expect(fiftyFifty.usedAtPosition).toBe(state.position);
+    expect(fiftyFifty.removed).toEqual([1, 3]);
+    expect(fiftyFifty.removed).not.toContain(2);
+    expect(committed.p_engine_state.correctIndex).toBeNull();
+    expect(committed.p_public_state.lifelines.phone.hintIsCorrect).toBeNull();
+    expect(committed.p_current_question).toEqual(question);
+  });
+
+  it.each([
+    [0, true, 2],
+    [60, false, 0],
+  ] as const)('builds a phone hint at roll %s', async (roll, hintIsCorrect, hint) => {
+    const state = activeState({
+      lifelines: {
+        ...createInitialState().lifelines,
+        fiftyFifty: {
+          used: true,
+          usedAtPosition: 4,
+          removed: [1, 3],
+        },
+      },
+    });
+    const randomInt = vi.fn((max: number) => max === 100 ? roll : 0);
+    const deps = makeDeps(state, {
+      loadCorrectIndex: vi.fn(async () => 2 as const),
+      randomInt,
+    });
+
+    await expect(runSessionEvent(deps, {
+      sessionId,
+      event: lifelineRequest('phone'),
+    })).resolves.toMatchObject({ ok: true });
+
+    const committed = vi.mocked(deps.commit).mock.calls[0][0];
+    expect(committed.p_engine_state.lifelines.phone).toMatchObject({
+      used: true,
+      usedAtPosition: 4,
+      hint,
+      hintIsCorrect,
+    });
+    expect(committed.p_public_state.lifelines.phone).toMatchObject({
+      hint,
+      hintIsCorrect: null,
+    });
+    expect(committed.p_engine_state.correctIndex).toBeNull();
+    expect(deps.loadVotes).not.toHaveBeenCalled();
+    expect(vi.mocked(deps.loadCorrectIndex)).toHaveBeenCalledOnce();
+    expect(randomInt.mock.calls).toEqual(hintIsCorrect ? [[100]] : [[100], [1]]);
+    if (!hintIsCorrect) expect([1, 3]).not.toContain(hint);
+  });
+
+  it('does not apply an earlier 50:50 removal to a phone hint', async () => {
+    const state = activeState({
+      lifelines: {
+        ...createInitialState().lifelines,
+        fiftyFifty: {
+          used: true,
+          usedAtPosition: 3,
+          removed: [0, 1],
+        },
+      },
+    });
+    const randomInt = vi.fn((max: number) => max === 100 ? 60 : 1);
+    const deps = makeDeps(state, {
+      loadCorrectIndex: vi.fn(async () => 2 as const),
+      randomInt,
+    });
+
+    await runSessionEvent(deps, { sessionId, event: lifelineRequest('phone') });
+
+    expect(vi.mocked(deps.commit).mock.calls[0][0].p_engine_state.lifelines.phone.hint)
+      .toBe(1);
+    expect(randomInt.mock.calls).toEqual([[100], [3]]);
+  });
+
+  it('counts current votes, ignores same question removals, and stores percentages only', async () => {
+    const state = activeState({
+      lifelines: {
+        ...createInitialState().lifelines,
+        fiftyFifty: {
+          used: true,
+          usedAtPosition: 4,
+          removed: [1, 2],
+        },
+      },
+    });
+    const votes = [
+      { option_index: 0 },
+      { option_index: 0 },
+      { option_index: 1 },
+      { option_index: 1 },
+      { option_index: 2 },
+      { option_index: 2 },
+      { option_index: 3 },
+      { option_index: 3 },
+      { option_index: 4 },
+      { option_index: '2' },
+      null,
+    ];
+    const loadVotes = vi.fn(async () => votes);
+    const loadCorrectIndex = vi.fn(async () => 2 as const);
+    const randomInt = vi.fn(() => 0);
+    const deps = makeDeps(state, { loadVotes, loadCorrectIndex, randomInt });
+
+    await expect(runSessionEvent(deps, {
+      sessionId,
+      event: lifelineRequest('audience'),
+    })).resolves.toMatchObject({ ok: true });
+
+    expect(loadVotes).toHaveBeenCalledOnce();
+    expect(loadVotes).toHaveBeenCalledWith(sessionId, 4);
+    expect(loadCorrectIndex).not.toHaveBeenCalled();
+    expect(randomInt).not.toHaveBeenCalled();
+    const committed = vi.mocked(deps.commit).mock.calls[0][0];
+    expect(committed.p_engine_state.lifelines.audience).toMatchObject({
+      used: true,
+      usedAtPosition: 4,
+      percentages: [50, 0, 0, 50],
+      notEnoughVotes: false,
+    });
+    expect(committed.p_engine_state.correctIndex).toBeNull();
+    expect(committed.p_public_state.lifelines.phone.hintIsCorrect).toBeNull();
+  });
+
+  it('spends audience with fewer than three counted votes and no percentages', async () => {
+    const state = activeState();
+    const deps = makeDeps(state, {
+      loadVotes: vi.fn(async () => [
+        { option_index: 0 },
+        { option_index: 3 },
+        { option_index: 4 },
+      ]),
+    });
+
+    await runSessionEvent(deps, { sessionId, event: lifelineRequest('audience') });
+
+    expect(vi.mocked(deps.commit).mock.calls[0][0].p_engine_state.lifelines.audience)
+      .toMatchObject({
+        used: true,
+        notEnoughVotes: true,
+        percentages: null,
+      });
+  });
+
+  it.each([
+    ['wrong state', activeState({ status: 'locked' }), 'wrong_state', undefined],
+    ['host actor', activeState(), 'not_allowed', { id: hostId, role: 'host' as const }],
+    ['wrong contestant id', activeState(), 'not_allowed', { id: 'other-contestant', role: 'contestant' as const }],
+    ['expired deadline', activeState(), 'deadline_passed', undefined],
+    ['already used', activeState({
+      lifelines: {
+        ...createInitialState().lifelines,
+        fiftyFifty: { used: true, usedAtPosition: 1, removed: [1, 2] },
+      },
+    }), 'lifeline_used', undefined],
+  ] as const)('does not load sensitive dependencies after dry run rejects for %s', async (
+    _label,
+    state,
+    error,
+    actor,
+  ) => {
+    const deps = makeDeps(state, {
+      now: vi.fn(() => error === 'deadline_passed' ? 200 : 100),
+    });
+
+    await expect(runSessionEvent(deps, {
+      sessionId,
+      event: lifelineRequest('fifty_fifty', actor),
+    })).resolves.toEqual({ ok: false, reason: 'rejected', error });
+
+    expect(deps.loadCorrectIndex).not.toHaveBeenCalled();
+    expect(deps.loadVotes).not.toHaveBeenCalled();
+    expect(deps.randomInt).not.toHaveBeenCalled();
+    expect(deps.commit).not.toHaveBeenCalled();
+  });
+
+  it('uses exactly one clock value for the lifeline dry run and real run', async () => {
+    const now = vi.fn()
+      .mockReturnValueOnce(199)
+      .mockReturnValue(200);
+    const deps = makeDeps(activeState(), { now });
+
+    await expect(runSessionEvent(deps, {
+      sessionId,
+      event: lifelineRequest('audience'),
+    })).resolves.toMatchObject({ ok: true });
+
+    expect(now).toHaveBeenCalledOnce();
+  });
+
+  it.each(['fifty_fifty', 'phone'] as const)(
+    'returns unknown without committing when %s has no correct index',
+    async (lifeline) => {
+      const deps = makeDeps(activeState(), {
+        loadCorrectIndex: vi.fn(async () => null),
+      });
+      await expect(runSessionEvent(deps, {
+        sessionId,
+        event: lifelineRequest(lifeline),
+      })).resolves.toEqual({ ok: false, reason: 'unknown' });
+      expect(deps.commit).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['correct index', 'fifty_fifty', { loadCorrectIndex: vi.fn(async () => { throw new Error('answer detail'); }) }],
+    ['votes', 'audience', { loadVotes: vi.fn(async () => { throw new Error('vote detail'); }) }],
+    ['random source', 'fifty_fifty', { randomInt: vi.fn(() => { throw new Error('random detail'); }) }],
+  ] as const)('returns unknown when the %s dependency throws', async (_name, lifeline, overrides) => {
+    const deps = makeDeps(activeState(), overrides);
+    await expect(runSessionEvent(deps, {
+      sessionId,
+      event: lifelineRequest(lifeline),
+    })).resolves.toEqual({ ok: false, reason: 'unknown' });
+    expect(deps.commit).not.toHaveBeenCalled();
+  });
+
+  it.each(['phone', 'audience'] as const)(
+    'reloads %s source on conflict retry',
+    async (lifeline) => {
+      const state = activeState();
+      const loadSession = vi.fn(async () => ({
+        hostId,
+        engineState: structuredClone(state),
+        version: 7,
+        currentQuestion: question,
+      }));
+      const commit = vi.fn<RunSessionEventDeps['commit']>()
+        .mockResolvedValueOnce({ data: null, error: { code: 'PJ003' } })
+        .mockResolvedValueOnce({ data: 9, error: null });
+      const loadCorrectIndex = vi.fn(async () => 2 as const);
+      const loadVotes = vi.fn(async () => [{ option_index: 2 }, { option_index: 3 }]);
+      const deps = makeDeps(state, {
+        loadSession,
+        loadCorrectIndex,
+        loadVotes,
+        commit,
+      });
+
+      await expect(runSessionEvent(deps, {
+        sessionId,
+        event: lifelineRequest(lifeline),
+      })).resolves.toEqual({ ok: true, version: 9 });
+
+      expect(loadSession).toHaveBeenCalledTimes(2);
+      if (lifeline === 'phone') {
+        expect(loadCorrectIndex).toHaveBeenCalledTimes(2);
+        expect(loadVotes).not.toHaveBeenCalled();
+      } else {
+        expect(loadVotes).toHaveBeenCalledTimes(2);
+        expect(loadCorrectIndex).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it('ignores runtime payload fields supplied with a lifeline request', async () => {
+    const event = {
+      type: 'use_lifeline' as const,
+      actor: { id: participantId, role: 'contestant' as const },
+      lifeline: 'fifty_fifty' as const,
+      remove: [0, 1],
+      hint: 3,
+      hintIsCorrect: true,
+      voteCounts: [9, 8, 7, 6],
+      correctIndex: 3,
+    } as RunnableEvent;
+    const deps = makeDeps(activeState(), {
+      loadCorrectIndex: vi.fn(async () => 2 as const),
+      randomInt: vi.fn(() => 0),
+    });
+
+    await runSessionEvent(deps, { sessionId, event });
+
+    expect(vi.mocked(deps.commit).mock.calls[0][0].p_engine_state.lifelines.fiftyFifty.removed)
+      .toEqual([1, 3]);
+  });
+
+  it('keeps distinctive lifeline inputs out of console output', async () => {
+    const privateSessionId = 'distinctive-lifeline-session-841';
+    const privateHostId = 'distinctive-lifeline-host-952';
+    const privateParticipantId = 'distinctive-lifeline-contestant-163';
+    const privateVoteValue = 'distinctive-vote-value-274';
+    const privateCorrectAnswerContext = 'correct answer context 385';
+    const before = loggedOutput.length;
+    const state = activeState({ contestantId: privateParticipantId });
+    const privateDeps = (overrides: Partial<RunSessionEventDeps> = {}) =>
+      makeDeps(state, {
+        loadSession: vi.fn(async () => ({
+          hostId: privateHostId,
+          engineState: structuredClone(state),
+          version: 7,
+          currentQuestion: question,
+        })),
+        loadCorrectIndex: vi.fn(async () => 3 as const),
+        loadVotes: vi.fn(async () => [
+          { option_index: 0, participant_id: privateVoteValue },
+          { option_index: 3, participant_id: privateVoteValue },
+        ]),
+        randomInt: vi.fn(() => 0),
+        ...overrides,
+      });
+    const deps = privateDeps();
+
+    await runSessionEvent(deps, {
+      sessionId: privateSessionId,
+      event: lifelineRequest('fifty_fifty', {
+        id: privateParticipantId,
+        role: 'contestant',
+      }),
+    });
+    await runSessionEvent(deps, {
+      sessionId: privateSessionId,
+      event: lifelineRequest('audience', {
+        id: privateParticipantId,
+        role: 'contestant',
+      }),
+    });
+    await runSessionEvent(deps, {
+      sessionId: privateSessionId,
+      event: lifelineRequest('phone', {
+        id: privateParticipantId,
+        role: 'contestant',
+      }),
+    });
+    await runSessionEvent(privateDeps({
+      loadCorrectIndex: vi.fn(async () => {
+        throw new Error(privateCorrectAnswerContext);
+      }),
+    }), {
+      sessionId: privateSessionId,
+      event: lifelineRequest('phone', {
+        id: privateParticipantId,
+        role: 'contestant',
+      }),
+    });
+    await runSessionEvent(privateDeps({
+      loadVotes: vi.fn(async () => {
+        throw new Error(privateVoteValue);
+      }),
+    }), {
+      sessionId: privateSessionId,
+      event: lifelineRequest('audience', {
+        id: privateParticipantId,
+        role: 'contestant',
+      }),
+    });
+    await runSessionEvent(privateDeps({
+      randomInt: vi.fn(() => {
+        throw new Error(privateCorrectAnswerContext);
+      }),
+    }), {
+      sessionId: privateSessionId,
+      event: lifelineRequest('fifty_fifty', {
+        id: privateParticipantId,
+        role: 'contestant',
+      }),
+    });
+
+    const output = JSON.stringify(loggedOutput.slice(before));
+    for (const value of [
+      privateSessionId,
+      privateHostId,
+      privateParticipantId,
+      privateVoteValue,
+      privateCorrectAnswerContext,
+      '3',
+      JSON.stringify([{ option_index: 0, participant_id: privateVoteValue }]),
+    ]) {
+      expect(output).not.toContain(value);
+    }
   });
 
   it('commits set_contestant with the loaded version and public state', async () => {
@@ -560,11 +965,14 @@ describe('runSessionEvent', () => {
       event: makeEvent({
         type: 'use_lifeline',
         actor: { id: participantId, role: 'contestant' },
-        lifeline: { lifeline: 'phone', hint: 2, hintIsCorrect: true },
+        lifeline: 'phone',
       }),
     },
   ])('$name reuses the stored question during question_active', async ({ state, event }) => {
-    const deps = makeDeps(state);
+    const deps = makeDeps(state, {
+      loadCorrectIndex: vi.fn(async () => 0 as const),
+      randomInt: vi.fn(() => 0),
+    });
 
     await expect(runSessionEvent(deps, { sessionId, event })).resolves.toMatchObject({
       ok: true,

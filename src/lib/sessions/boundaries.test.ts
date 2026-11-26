@@ -21,6 +21,12 @@ const HOST_PAGE = 'src/app/host/sessions/[id]/page.tsx';
 const HOST_CONTROLS = 'src/app/host/sessions/[id]/session-controls.tsx';
 const HOST_ACTIONS = 'src/app/host/sessions/[id]/actions.ts';
 const COUNTDOWN_TIMER = 'src/components/countdown-timer';
+const LIFELINE_PAYLOADS = 'src/lib/sessions/lifeline-payloads';
+const SESSION_EVENT_DEPS = 'src/lib/sessions/session-event-deps.ts';
+const NODE_CRYPTO_ALLOWED_FILES = [
+  'src/lib/sessions/join-code.ts',
+  'src/lib/sessions/session-event-deps.ts',
+].sort();
 const DATABASE_ANSWER_COLUMN = 'correct' + '_index';
 const PUBLIC_ANSWER_IDENTIFIER = ['correct', 'Index'].join('');
 const HOST_SENSITIVE_FIELDS = ['question_answers', DATABASE_ANSWER_COLUMN, 'session_private'];
@@ -124,6 +130,47 @@ function lifelineForbiddenImports(filesToCheck: SourceFile[]): string[] {
   );
 }
 
+function importsResolvedModule(file: SourceFile, expectedModule: string): boolean {
+  return extractImports(file.source).some((specifier) =>
+    resolveSpecifier(specifier, file.path) === expectedModule,
+  );
+}
+
+function lifelinePayloadImporters(filesToCheck: SourceFile[]): string[] {
+  return filesToCheck
+    .filter((file) => importsResolvedModule(file, LIFELINE_PAYLOADS))
+    .map((file) => file.path)
+    .sort();
+}
+
+function unexpectedLifelinePayloadImporters(filesToCheck: SourceFile[]): string[] {
+  return lifelinePayloadImporters(filesToCheck).filter((filePath) =>
+    filePath !== 'src/lib/sessions/run-session-event.ts' &&
+    !/\.test\.tsx?$/i.test(filePath),
+  );
+}
+
+function nodeCryptoImporters(filesToCheck: SourceFile[]): string[] {
+  return filesToCheck
+    .filter((file) => !/\.test\.tsx?$/i.test(file.path))
+    .filter((file) => importsResolvedModule(file, 'node:crypto'))
+    .map((file) => file.path)
+    .sort();
+}
+
+function filesReadingVotes(filesToCheck: SourceFile[]): string[] {
+  const votesTablePattern = /\.from\s*\(\s*(['"`])votes\1\s*\)/;
+  return filesToCheck
+    .filter((file) => !/\.test\.tsx?$/i.test(file.path))
+    .filter((file) => votesTablePattern.test(file.source))
+    .map((file) => file.path)
+    .sort();
+}
+
+function selectsOnlyVoteOption(source: string): boolean {
+  return /\.from\s*\(\s*(['"`])votes\1\s*\)\s*\.select\s*\(\s*(['"`])option_index\2\s*\)/.test(source);
+}
+
 describe('session import boundaries', () => {
   const files = sourceFiles(join(process.cwd(), 'src'));
   const answerDataFiles = findAnswerDataFiles(files);
@@ -225,6 +272,90 @@ describe('session import boundaries', () => {
     expect(LIFELINE_FORBIDDEN_TEXT.filter((text) =>
       fakeFiles[0].source.includes(text),
     )).toEqual(LIFELINE_FORBIDDEN_TEXT);
+  });
+
+  it('limits lifeline payload imports to the runner and tests', () => {
+    const importers = lifelinePayloadImporters(files);
+    expect(importers).toContain('src/lib/sessions/run-session-event.ts');
+    expect(unexpectedLifelinePayloadImporters(files)).toEqual([]);
+
+    for (const file of files) {
+      if (importsResolvedModule(file, LIFELINE_PAYLOADS) && isClientFile(file.source)) {
+        expect(file.path).toBe('src/lib/sessions/run-session-event.ts');
+      }
+    }
+  });
+
+  it('detects disallowed lifeline payload importers and client imports in fake files', () => {
+    const fakeFiles: SourceFile[] = [
+      {
+        path: 'src/lib/sessions/other.ts',
+        source: "import { buildPhoneHint } from './lifeline-payloads';",
+      },
+      {
+        path: 'src/components/other.tsx',
+        source: "'use client'; import { buildPhoneHint } from '../lib/sessions/lifeline-payloads';",
+      },
+    ];
+    expect(lifelinePayloadImporters(fakeFiles)).toEqual([
+      'src/components/other.tsx',
+      'src/lib/sessions/other.ts',
+    ]);
+    expect(unexpectedLifelinePayloadImporters(fakeFiles)).toEqual([
+      'src/components/other.tsx',
+      'src/lib/sessions/other.ts',
+    ]);
+    expect(fakeFiles.filter((file) =>
+      importsResolvedModule(file, LIFELINE_PAYLOADS) && isClientFile(file.source),
+    ).map((file) => file.path)).toEqual(['src/components/other.tsx']);
+  });
+
+  it('limits votes table reads to the session event dependency and one selected column', () => {
+    expect(filesReadingVotes(files)).toEqual([SESSION_EVENT_DEPS]);
+    const depsFile = files.find((file) => file.path === SESSION_EVENT_DEPS);
+    expect(depsFile).toBeDefined();
+    expect(depsFile && selectsOnlyVoteOption(depsFile.source)).toBe(true);
+  });
+
+  it('detects votes table reads and extra selected columns in fake files', () => {
+    const fakeFiles: SourceFile[] = [
+      { path: 'src/lib/sessions/not-allowed.ts', source: "admin.from ( 'votes' ).select('option_index')" },
+      { path: SESSION_EVENT_DEPS, source: "admin.from(`votes`).select('option_index, participant_id')" },
+    ];
+    expect(filesReadingVotes(fakeFiles)).toEqual([
+      'src/lib/sessions/not-allowed.ts',
+      SESSION_EVENT_DEPS,
+    ]);
+    expect(fakeFiles.filter((file) => file.path === SESSION_EVENT_DEPS)
+      .every((file) => selectsOnlyVoteOption(file.source))).toBe(false);
+  });
+
+  it('limits node crypto imports to the exact server source files', () => {
+    expect(nodeCryptoImporters(files)).toEqual(NODE_CRYPTO_ALLOWED_FILES);
+    const runner = files.find((file) => file.path === 'src/lib/sessions/run-session-event.ts');
+    expect(runner).toBeDefined();
+    expect(runner && importsResolvedModule(runner, 'src/lib/supabase/admin')).toBe(false);
+    expect(runner && importsResolvedModule(runner, 'node:crypto')).toBe(false);
+  });
+
+  it('detects node crypto and admin imports from the runner in fake sources', () => {
+    const fakeRunner: SourceFile = {
+      path: 'src/lib/sessions/run-session-event.ts',
+      source: "import 'node:crypto'; import '@/lib/supabase/admin';",
+    };
+    expect([
+      importsResolvedModule(fakeRunner, 'node:crypto'),
+      importsResolvedModule(fakeRunner, 'src/lib/supabase/admin'),
+    ]).toEqual([true, true]);
+  });
+
+  it('detects node crypto imports from an unlisted source file', () => {
+    const fakeFiles: SourceFile[] = [
+      { path: 'src/lib/sessions/unlisted.ts', source: "import { randomInt } from 'node:crypto';" },
+      { path: 'src/lib/sessions/session-event-deps.test.ts', source: "import 'node:crypto';" },
+    ];
+    expect(nodeCryptoImporters(fakeFiles)).toEqual(['src/lib/sessions/unlisted.ts']);
+    expect(nodeCryptoImporters(fakeFiles)).not.toContain('src/lib/sessions/session-event-deps.ts');
   });
 
   it('blocks player, join, and component imports from host and question helper directories', () => {
