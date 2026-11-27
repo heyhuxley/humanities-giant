@@ -21,10 +21,11 @@ export function LifelineResults({ lifelines }: Props) {
   if (phoneMessage === null && audienceResult === null && !hasRemovedOptions) return null;
 
   return (
-    <div className="space-y-2 rounded-sm border border-rule bg-slab p-3 text-sm text-bone">
-      {phoneMessage !== null ? <p>{phoneMessage}</p> : null}
+    <div data-stage="lifeline-result" className="space-y-2 rounded-sm border border-rule bg-slab p-3 text-sm text-bone">
+      {phoneMessage !== null ? <p data-lifeline="phone">{phoneMessage}</p> : null}
       {audienceResult?.kind === 'bars' ? (
         <div
+          data-lifeline="audience"
           role="img"
           aria-label={`Audience percentages: ${audienceResult.rows.map((row) => row.text).join(', ')}`}
           className="space-y-1"
@@ -34,6 +35,7 @@ export function LifelineResults({ lifelines }: Props) {
               <span className="w-16 shrink-0">{row.text}</span>
               <div className="h-2 flex-1 overflow-hidden rounded-sm bg-slab-raised">
                 <div
+                  data-bar
                   className="h-full bg-ember"
                   style={{ width: `${row.percent}%` }}
                 />
@@ -42,8 +44,10 @@ export function LifelineResults({ lifelines }: Props) {
           ))}
         </div>
       ) : null}
-      {audienceResult?.kind === 'not_enough' ? <p>{audienceResult.text}</p> : null}
-      {hasRemovedOptions ? <p>50:50: two answers removed</p> : null}
+      {audienceResult?.kind === 'not_enough' ? (
+        <p data-lifeline="audience">{audienceResult.text}</p>
+      ) : null}
+      {hasRemovedOptions ? <p data-lifeline="fifty_fifty">50:50: two answers removed</p> : null}
     </div>
   );
 }

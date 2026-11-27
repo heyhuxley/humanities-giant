@@ -7,6 +7,11 @@ export type LadderRow = {
   state: 'passed' | 'current' | 'upcoming';
 };
 
+export function amountAtPosition(position: number): number {
+  if (!Number.isInteger(position) || position < 1 || position > MONEY_LADDER.length) return 0;
+  return MONEY_LADDER[position - 1] ?? 0;
+}
+
 export function buildLadderRows(input: {
   position: number;
   status: string;

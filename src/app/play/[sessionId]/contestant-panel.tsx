@@ -23,6 +23,7 @@ type Props = Readonly<{
   sessionId: string;
   position: number | null;
   amountAtStake: number | null;
+  previousAmount?: number;
   question: { text: string; options: [string, string, string, string] };
   lockedAnswer: Option | null;
   correctIndex: Option | null;
@@ -56,6 +57,7 @@ export function ContestantPanel({
   sessionId,
   position,
   amountAtStake,
+  previousAmount = 0,
   question,
   lockedAnswer,
   correctIndex,
@@ -139,9 +141,17 @@ export function ContestantPanel({
     <section className="space-y-5">
       {status !== 'question_active' && status !== 'locked' &&
       position !== null && amountAtStake !== null ? (
-        <p className="font-display text-brass">
+        <p
+          data-stage="amount"
+          data-amount={amountAtStake}
+          data-amount-prev={previousAmount}
+          className="font-display text-brass"
+        >
           Question {position} <span aria-hidden="true">|</span>{' '}
-          {formatNaira(amountAtStake)}
+          <span data-countup="root">
+            <span>{formatNaira(amountAtStake)}</span>
+            <span aria-hidden="true" data-countup-overlay></span>
+          </span>
         </p>
       ) : null}
       <div className="relative overflow-hidden border-y border-rule py-8 sm:py-10">

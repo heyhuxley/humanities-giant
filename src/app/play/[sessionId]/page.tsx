@@ -1,6 +1,6 @@
 import {notFound} from 'next/navigation';
 import {readCurrentQuestion, readPublicState} from '../../../lib/sessions/read-public-state';
-import {buildLadderRows, formatNaira} from '../../../lib/sessions/ladder-view';
+import {amountAtPosition, buildLadderRows, formatNaira} from '../../../lib/sessions/ladder-view';
 import {createClient} from '../../../lib/supabase/server';
 import {optionAvailability} from '../../../lib/sessions/lifeline-view';
 import {optionStates} from '../../../lib/sessions/reveal-view';
@@ -159,6 +159,7 @@ export default async function PlayPage({
 				sessionId={sessionId}
 				position={publicState.position}
 				amountAtStake={publicState.amountAtStake}
+				previousAmount={amountAtPosition((publicState.position ?? 0) - 1)}
 				question={currentQuestion}
 				lockedAnswer={publicState.lockedAnswer}
 				correctIndex={publicState.correctIndex}
@@ -177,6 +178,7 @@ export default async function PlayPage({
 				sessionId={sessionId}
 				position={publicState.position}
 				amountAtStake={publicState.amountAtStake}
+				previousAmount={amountAtPosition((publicState.position ?? 0) - 1)}
 				question={currentQuestion}
 				lockedAnswer={publicState.lockedAnswer}
 				correctIndex={publicState.correctIndex}

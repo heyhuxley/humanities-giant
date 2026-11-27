@@ -80,6 +80,13 @@ body {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  [data-slab] {
+    transition:
+      background-color 250ms ease-out,
+      border-color 250ms ease-out,
+      color 250ms ease-out;
+  }
+
   [data-slab]::after {
     position: absolute;
     inset: 0;
@@ -97,6 +104,30 @@ body {
     animation: slab-edge-pulse 400ms ease-out 1;
   }
 
+  [data-countup="root"] {
+    position: relative;
+    display: inline-block;
+  }
+
+  [data-countup-overlay] {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  [data-countup-overlay][data-active="true"] {
+    opacity: 1;
+  }
+
+  [data-countup="root"][data-counting="true"] > :not([data-countup-overlay]) {
+    opacity: 0;
+  }
+
+  [data-bar] {
+    transform-origin: left center;
+  }
+
   [data-stage="countdown-bar"][data-urgent="true"] {
     animation: countdown-urgent-pulse 1s ease-in-out infinite;
   }
@@ -109,6 +140,10 @@ body {
     100% {
       opacity: 0;
     }
+  }
+
+  [data-stage-motion][data-motion-running="true"] [data-slab] {
+    transition-property: background-color, border-color, color;
   }
 
   @keyframes countdown-urgent-pulse {

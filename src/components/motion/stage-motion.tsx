@@ -90,7 +90,12 @@ export function StageMotion({ snapshot, children }: StageMotionProps) {
   });
 
   return (
-    <div ref={rootRef} data-stage-motion data-phase={snapshot.status}>
+    <div
+      ref={rootRef}
+      data-stage-motion
+      data-phase={snapshot.status}
+      data-position={snapshot.position}
+    >
       {children}
     </div>
   );

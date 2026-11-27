@@ -354,7 +354,6 @@ export function findMotionIdentifierViolations(
   return files
     .filter((file) =>
       isUnder(normalizedPath(file.path), 'src/components/motion') &&
-      !isTestFile(file.path) &&
       /\.(?:ts|tsx)$/i.test(file.path),
     )
     .flatMap((file) => {
@@ -400,6 +399,76 @@ export function findMotionImportViolations(
     .sort();
 }
 
+export function findMotionLibImportViolations(
+  files: { path: string; source: string }[],
+): string[] {
+  return files
+    .filter((file) => isUnder(normalizedPath(file.path), 'src/components/motion'))
+    .flatMap((file) => extractImports(file.source)
+      .filter((specifier) => isUnder(resolveSpecifier(specifier, file.path), 'src/lib'))
+      .filter((specifier) => {
+        if (resolveSpecifier(specifier, file.path) !== 'src/lib/sessions/ladder-view') {
+          return true;
+        }
+        const escaped = escapeRegExp(specifier);
+        const allowedImport = new RegExp(
+          `\\bimport\\s*\\{\\s*formatNaira\\s*\\}\\s*from\\s*(['"])${escaped}\\1`,
+        );
+        return !allowedImport.test(file.source);
+      })
+      .map((specifier) => `${normalizedPath(file.path)}:import:${specifier}`),
+    )
+    .sort();
+}
+
+export function findMotionMarkupMutationViolations(
+  files: { path: string; source: string }[],
+): string[] {
+  return files
+    .filter((file) => isUnder(normalizedPath(file.path), 'src/components/motion'))
+    .flatMap((file) => {
+      const filePath = normalizedPath(file.path);
+      const violations: string[] = [];
+      if (/\b(?:innerHTML|insertAdjacentHTML)\b/.test(file.source)) {
+        violations.push(`${filePath}:html-mutation`);
+      }
+      if (
+        filePath !== 'src/components/motion/run-motion.ts' &&
+        /\.textContent\s*=/.test(file.source)
+      ) {
+        violations.push(`${filePath}:text-content-assignment`);
+      }
+      return violations;
+    })
+    .sort();
+}
+
+export function findMotionForbiddenObjectKeyViolations(
+  files: { path: string; source: string }[],
+): string[] {
+  const forbiddenKey = /\b(?:width|height|top|left|right|bottom|margin|padding|filter|color|backgroundColor)\s*:/;
+  return files
+    .filter((file) => normalizedPath(file.path) === 'src/components/motion/run-motion.ts')
+    .filter((file) => forbiddenKey.test(file.source))
+    .map((file) => `${normalizedPath(file.path)}:forbidden-object-key`)
+    .sort();
+}
+
+export function findCountUpOverlayChildren(
+  files: { path: string; source: string }[],
+): string[] {
+  const overlayElement = /<([A-Za-z][\w.]*)\b(?=[^>]*\bdata-countup-overlay\b)[^>]*>([\s\S]*?)<\/\1\s*>/g;
+  return files.flatMap((file) => {
+    const violations: string[] = [];
+    for (const match of file.source.matchAll(overlayElement)) {
+      if ((match[2] ?? '').trim() !== '') {
+        violations.push(`${normalizedPath(file.path)}:countup-overlay-has-children`);
+      }
+    }
+    return violations;
+  }).sort();
+}
+
 function specifierBaseName(specifier: string): string {
   return specifier
     .split('/')
@@ -425,7 +494,8 @@ export function findPureMotionBoundaryViolations(
       (
         normalizedPath(file.path) === 'src/components/motion/motion-plan.ts' ||
         normalizedPath(file.path) === 'src/components/motion/motion-timings.ts' ||
-        normalizedPath(file.path) === 'src/components/motion/motion-steps.ts'
+        normalizedPath(file.path) === 'src/components/motion/motion-steps.ts' ||
+        normalizedPath(file.path) === 'src/components/motion/count-up.ts'
       ),
     )
     .flatMap((file) => {
@@ -512,6 +582,31 @@ export function findCssKeyframesOutsideMotionPreference(source: string): string[
       return !mediaRanges.some((range) => index > range.start && index < range.end);
     })
     .map((match) => `@keyframes ${match[1]} outside reduced motion preference`);
+}
+
+export function findMotionTransitionsOutsideMotionPreference(source: string): string[] {
+  const mediaRanges = [...source.matchAll(/@media\s*\(prefers-reduced-motion:\s*no-preference\)\s*\{/g)]
+    .map((match) => {
+      const start = match.index ?? 0;
+      const openBrace = start + match[0].lastIndexOf('{');
+      return { start, end: findClosingBrace(source, openBrace) };
+    });
+  const violations: string[] = [];
+  const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
+
+  for (const match of source.matchAll(rulePattern)) {
+    const selector = (match[1] ?? '').trim();
+    const declarations = match[2] ?? '';
+    if (!/\btransition(?:-[\w]+)?\s*:/.test(declarations)) continue;
+    if (!/(?:\[data-slab\]|\[data-countup-overlay\]|\[data-bar\])/.test(selector)) continue;
+    if (selector.includes('[data-motion-running')) continue;
+
+    const index = match.index ?? 0;
+    if (!mediaRanges.some((range) => index > range.start && index < range.end)) {
+      violations.push(`motion transition outside reduced motion preference: ${selector}`);
+    }
+  }
+  return violations;
 }
 
 export function findRawCssColorLiteralViolations(source: string): string[] {

@@ -25,4 +25,19 @@ describe('motion timings', () => {
       MOTION_TIMINGS.countUp;
     expect(correctRevealSequence).toBeLessThanOrEqual(2000);
   });
+
+  it('keeps the reveal and result timings on their authored values', () => {
+    expect(MOTION_TIMINGS.undimSlabs).toBe(MOTION_TIMINGS.lockDim);
+    expect(MOTION_TIMINGS.settle).toBe(MOTION_TIMINGS.correctFlash);
+    expect(MOTION_TIMINGS.correctFlash).toBe(300);
+    expect(MOTION_TIMINGS.ladderStep).toBe(400);
+    expect(MOTION_TIMINGS.countUp).toBe(800);
+    expect(MOTION_TIMINGS.wrongPick).toBe(250);
+    expect(MOTION_TIMINGS.wrongCorrectDelay).toBe(300);
+    expect(MOTION_TIMINGS.wrongCorrectLight).toBe(400);
+    expect(MOTION_TIMINGS.fiftyFifty).toBe(350);
+    expect(MOTION_TIMINGS.resultFade).toBe(300);
+    expect(MOTION_TIMINGS.barGrow).toBe(600);
+    expect(MOTION_TIMINGS.barStagger).toBe(80);
+  });
 });

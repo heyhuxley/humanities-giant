@@ -1,6 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { MONEY_LADDER, MILESTONE_QUESTIONS } from '../../game/constants';
-import { buildLadderRows, formatNaira } from './ladder-view';
+import { amountAtPosition, buildLadderRows, formatNaira } from './ladder-view';
+
+describe('amountAtPosition', () => {
+  it.each([
+    [0, 0],
+    [1, 5_000],
+    [5, 30_000],
+    [6, 40_000],
+    [10, 100_000],
+    [15, 500_000],
+    [16, 0],
+    [-1, 0],
+    [1.5, 0],
+    [Number.NaN, 0],
+  ])('returns the amount at position %s', (position, amount) => {
+    expect(amountAtPosition(position)).toBe(amount);
+  });
+});
 
 describe('buildLadderRows', () => {
   it('returns all fifteen rows from question 15 down to question 1', () => {

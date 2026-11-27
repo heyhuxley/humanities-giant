@@ -11,11 +11,16 @@ import {
   findIdentifierFiles,
   findForbiddenPlayerLifelineFields,
   findGsapImportViolations,
+  findCountUpOverlayChildren,
   findImportsFromDirectories,
   findImportsOfFiles,
   findMotionIdentifierViolations,
+  findMotionForbiddenObjectKeyViolations,
   findMotionImportViolations,
+  findMotionLibImportViolations,
+  findMotionMarkupMutationViolations,
   findPureMotionBoundaryViolations,
+  findMotionTransitionsOutsideMotionPreference,
   findUnexpectedIdentifierFiles,
   findDynamicFromCalls,
   findParticipantIdentifierMatches,
@@ -336,12 +341,17 @@ describe('session import boundaries', () => {
   it('keeps motion display data and dependencies isolated', () => {
     expect(findMotionIdentifierViolations(files)).toEqual([]);
     expect(findMotionImportViolations(files)).toEqual([]);
+    expect(findMotionLibImportViolations(files)).toEqual([]);
+    expect(findMotionMarkupMutationViolations(files)).toEqual([]);
+    expect(findMotionForbiddenObjectKeyViolations(files)).toEqual([]);
+    expect(findCountUpOverlayChildren(files)).toEqual([]);
     expect(findPureMotionBoundaryViolations(files)).toEqual([]);
     expect(findGsapImportViolations(files)).toEqual([]);
     expect(findForbiddenMotionLibraryFeatures(files)).toEqual([]);
 
     const globalStyles = readFileSync(join(process.cwd(), 'src', 'app', 'globals.css'), 'utf8');
     expect(findCssKeyframesOutsideMotionPreference(globalStyles)).toEqual([]);
+    expect(findMotionTransitionsOutsideMotionPreference(globalStyles)).toEqual([]);
     expect(findRawCssColorLiteralViolations(globalStyles)).toEqual([]);
 
     const fakeFiles: SourceFile[] = [
@@ -371,7 +381,19 @@ describe('session import boundaries', () => {
       },
       {
         path: 'src/components/motion/run-motion.ts',
-        source: 'const current = Date.now();',
+        source: 'const current = Date.now(); element.textContent = "x"; const values = { width: 1 };',
+      },
+      {
+        path: 'src/components/motion/count-up.ts',
+        source: 'element.innerHTML = "x"; element.insertAdjacentHTML("beforeend", "x");',
+      },
+      {
+        path: 'src/components/motion/foreign-import.ts',
+        source: "import { value } from '../../lib/sessions/unrelated';",
+      },
+      {
+        path: 'src/components/player.tsx',
+        source: ['<span data-countup-', 'overlay>', 'visible child', '</span>'].join(''),
       },
       {
         path: 'src/components/motion/stage-motion.tsx',
@@ -391,6 +413,29 @@ describe('session import boundaries', () => {
     expect(findMotionIdentifierViolations(fakeFiles).length).toBeGreaterThan(0);
     expect(findMotionImportViolations(fakeFiles).length).toBeGreaterThan(0);
     expect(findPureMotionBoundaryViolations(fakeFiles).length).toBeGreaterThan(0);
+    expect(findMotionMarkupMutationViolations(fakeFiles)).toEqual([
+      'src/components/motion/count-up.ts:html-mutation',
+    ]);
+    expect(findMotionLibImportViolations(fakeFiles)).toEqual([
+      'src/components/motion/foreign-import.ts:import:../../lib/sessions/unrelated',
+      'src/components/motion/unsafe.ts:import:@/lib/auth/require-host',
+      'src/components/motion/unsafe.ts:import:@/lib/sessions/run-session-event',
+      'src/components/motion/unsafe.ts:import:@/lib/supabase/admin',
+    ]);
+    expect(findMotionForbiddenObjectKeyViolations(fakeFiles)).toEqual([
+      'src/components/motion/run-motion.ts:forbidden-object-key',
+    ]);
+    expect(findCountUpOverlayChildren(fakeFiles)).toEqual([
+      'src/components/player.tsx:countup-overlay-has-children',
+    ]);
+    expect(findMotionTransitionsOutsideMotionPreference(
+      '[data-slab] { transition: opacity 1s; }',
+    )).toEqual([
+      'motion transition outside reduced motion preference: [data-slab]',
+    ]);
+    expect(findMotionTransitionsOutsideMotionPreference(
+      '[data-stage-motion][data-motion-running="true"] [data-slab] { transition-property: color; }',
+    )).toEqual([]);
     expect(findGsapImportViolations(fakeFiles)).toEqual([
       'src/app/play/[sessionId]/page.tsx:import:@gsap/react',
       'src/app/play/[sessionId]/page.tsx:import:gsap',

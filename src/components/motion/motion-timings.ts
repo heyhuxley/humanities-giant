@@ -3,7 +3,6 @@ export const MOTION_TIMINGS = {
   numeralFade: 500,
   numeralDelay: 150,
   numeralRise: 12,
-  textStagger: 25,
   textMax: 900,
   questionSlabDelay: 175,
   slabEnter: 350,
@@ -12,6 +11,7 @@ export const MOTION_TIMINGS = {
   select: 150,
   selectPulse: 400,
   lockDim: 250,
+  undimSlabs: 250,
   lockTighten: 400,
   correctFlash: 300,
   settle: 300,
@@ -43,7 +43,6 @@ export const motionEasings = MOTION_EASINGS;
 export const questionSpotlight = MOTION_TIMINGS.questionSpotlight;
 export const numeralFade = MOTION_TIMINGS.numeralFade;
 export const numeralDelay = MOTION_TIMINGS.numeralDelay;
-export const textStagger = MOTION_TIMINGS.textStagger;
 export const textMax = MOTION_TIMINGS.textMax;
 export const slabEnter = MOTION_TIMINGS.slabEnter;
 export const slabStagger = MOTION_TIMINGS.slabStagger;
@@ -51,6 +50,7 @@ export const slabRise = MOTION_TIMINGS.slabRise;
 export const select = MOTION_TIMINGS.select;
 export const selectPulse = MOTION_TIMINGS.selectPulse;
 export const lockDim = MOTION_TIMINGS.lockDim;
+export const undimSlabs = MOTION_TIMINGS.undimSlabs;
 export const lockTighten = MOTION_TIMINGS.lockTighten;
 export const correctFlash = MOTION_TIMINGS.correctFlash;
 export const settle = MOTION_TIMINGS.settle;

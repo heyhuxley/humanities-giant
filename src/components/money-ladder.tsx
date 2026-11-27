@@ -18,6 +18,7 @@ export function MoneyLadder({
         {rows.map((row) => (
           <li
             key={row.position}
+            data-ladder-row={row.position}
             aria-current={row.state === 'current' ? 'true' : undefined}
             className={`flex min-w-0 flex-col gap-1 rounded-sm border px-2 py-2 ${
               row.state === 'current'
