@@ -148,7 +148,7 @@ export function ContestantPanel({
           className="font-display text-brass"
         >
           Question {position} <span aria-hidden="true">|</span>{' '}
-          <span data-countup="root">
+          <span data-countup="root" className="tabular-nums">
             <span>{formatNaira(amountAtStake)}</span>
             <span aria-hidden="true" data-countup-overlay></span>
           </span>

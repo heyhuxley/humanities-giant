@@ -260,7 +260,7 @@ export default async function PlayPage({
 				tabIndex={-1}
 				className={isAnsweringView
 					? 'film-grain mx-auto min-h-screen w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8'
-					: 'film-grain mx-auto min-h-screen w-full max-w-3xl space-y-8 px-4 py-8 sm:px-6 sm:py-12'}
+					: 'film-grain mx-auto min-h-screen w-full max-w-7xl space-y-8 px-4 py-8 sm:px-6 sm:py-12'}
 			>
 				<header className="flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-4">
 					<h1 className={isAnsweringView
