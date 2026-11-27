@@ -98,6 +98,8 @@ export function CountdownTimer({
 			>
 				<div aria-hidden="true" className="h-2 min-w-0 flex-1 overflow-hidden rounded-sm bg-slab-raised">
 					<div
+						data-stage="countdown-bar"
+						data-urgent={seconds > 0 && seconds <= 5 ? 'true' : undefined}
 						className={`h-full origin-left ${seconds <= 5 ? 'bg-rose' : 'bg-ember'}`}
 						style={{transform: `scaleX(${remainingFraction})`}}
 					/>

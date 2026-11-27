@@ -148,7 +148,7 @@ export function ContestantPanel({
         <Spotlight>
           <div className="relative mx-auto max-w-3xl px-3 text-center">
             <GiantNumeral value={position ?? 0} />
-            <h2 className="relative font-display text-lg font-semibold leading-snug text-bone text-pretty sm:text-xl">
+            <h2 data-stage="question" className="relative font-display text-lg font-semibold leading-snug text-bone text-pretty sm:text-xl">
               {question.text}
             </h2>
           </div>

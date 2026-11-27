@@ -69,3 +69,56 @@ body {
     transparent 74%
   );
 }
+
+[data-stage-motion][data-phase="locked"] [data-slab][data-state="neutral"] {
+  opacity: 0.4;
+}
+
+[data-stage-motion][data-phase="locked"] [data-stage="spotlight"] {
+  transform: scale(0.92);
+  transform-origin: top center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-slab]::after {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 0 0.75rem color-mix(in srgb, var(--color-ember) 35%, transparent);
+    content: "";
+    opacity: 0;
+  }
+
+  [data-slab]:is([data-state="neutral"], [data-state="selected"]) > span:first-child {
+    transition: background-color 150ms ease-out;
+  }
+
+  [data-slab][data-state="selected"]::after {
+    animation: slab-edge-pulse 400ms ease-out 1;
+  }
+
+  [data-stage="countdown-bar"][data-urgent="true"] {
+    animation: countdown-urgent-pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes slab-edge-pulse {
+    0% {
+      opacity: 0.7;
+    }
+
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes countdown-urgent-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.55;
+    }
+  }
+}

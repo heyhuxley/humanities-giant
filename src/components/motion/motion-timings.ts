@@ -2,8 +2,10 @@ export const MOTION_TIMINGS = {
   questionSpotlight: 600,
   numeralFade: 500,
   numeralDelay: 150,
+  numeralRise: 12,
   textStagger: 25,
   textMax: 900,
+  questionSlabDelay: 175,
   slabEnter: 350,
   slabStagger: 120,
   slabRise: 12,
@@ -64,17 +66,20 @@ export const barStagger = MOTION_TIMINGS.barStagger;
 export const finalCount = MOTION_TIMINGS.finalCount;
 export const finalLine = MOTION_TIMINGS.finalLine;
 export const reducedFade = MOTION_TIMINGS.reducedFade;
+export const motionNoDelay = 0;
 
 export function totalQuestionEnterMs(): number {
   const numeralEntrance = MOTION_TIMINGS.numeralFade + MOTION_TIMINGS.numeralDelay;
+  const questionEntrance = MOTION_TIMINGS.numeralDelay + MOTION_TIMINGS.textMax;
   const fourSlabsEntrance =
+    MOTION_TIMINGS.questionSlabDelay +
     MOTION_TIMINGS.slabEnter +
     MOTION_TIMINGS.slabStagger * 3;
 
   return Math.max(
     MOTION_TIMINGS.questionSpotlight,
     numeralEntrance,
-    MOTION_TIMINGS.textMax,
+    questionEntrance,
     fourSlabsEntrance,
   );
 }

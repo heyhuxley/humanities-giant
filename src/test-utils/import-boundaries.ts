@@ -347,6 +347,8 @@ export function findMotionIdentifierViolations(
     ['participant', '_id'].join(''),
     ['session', '_private'].join(''),
     ['question', '_answers'].join(''),
+    'Date.now',
+    'Math.random',
   ];
 
   return files
@@ -422,7 +424,8 @@ export function findPureMotionBoundaryViolations(
     .filter((file) =>
       (
         normalizedPath(file.path) === 'src/components/motion/motion-plan.ts' ||
-        normalizedPath(file.path) === 'src/components/motion/motion-timings.ts'
+        normalizedPath(file.path) === 'src/components/motion/motion-timings.ts' ||
+        normalizedPath(file.path) === 'src/components/motion/motion-steps.ts'
       ),
     )
     .flatMap((file) => {
@@ -451,7 +454,6 @@ export function findGsapImportViolations(
   files: { path: string; source: string }[],
 ): string[] {
   return files
-    .filter((file) => !isTestFile(file.path))
     .flatMap((file) => extractImports(file.source)
       .filter((specifier) =>
         specifier === 'gsap' ||
@@ -463,6 +465,68 @@ export function findGsapImportViolations(
       .map((specifier) => `${normalizedPath(file.path)}:import:${specifier}`),
     )
     .sort();
+}
+
+export function findForbiddenMotionLibraryFeatures(
+  files: { path: string; source: string }[],
+): string[] {
+  const forbiddenIdentifier = ['Split', 'Text'].join('');
+  const forbiddenImport = `gsap/${forbiddenIdentifier}`;
+  const identifierPattern = new RegExp(`\\b${escapeRegExp(forbiddenIdentifier)}\\b`);
+
+  return files.flatMap((file) => {
+    const filePath = normalizedPath(file.path);
+    const violations = extractImports(file.source)
+      .filter((specifier) => specifier === forbiddenImport)
+      .map((specifier) => `${filePath}:import:${specifier}`);
+    if (identifierPattern.test(file.source)) {
+      violations.push(`${filePath}:identifier:${forbiddenIdentifier}`);
+    }
+    return violations;
+  }).sort();
+}
+
+function findClosingBrace(source: string, openBraceIndex: number): number {
+  let depth = 0;
+  for (let index = openBraceIndex; index < source.length; index += 1) {
+    if (source[index] === '{') depth += 1;
+    if (source[index] === '}') {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return source.length;
+}
+
+export function findCssKeyframesOutsideMotionPreference(source: string): string[] {
+  const mediaRanges = [...source.matchAll(/@media\s*\(prefers-reduced-motion:\s*no-preference\)\s*\{/g)]
+    .map((match) => {
+      const start = match.index ?? 0;
+      const openBrace = start + match[0].lastIndexOf('{');
+      return { start, end: findClosingBrace(source, openBrace) };
+    });
+
+  return [...source.matchAll(/@keyframes\s+([-\w]+)/g)]
+    .filter((match) => {
+      const index = match.index ?? 0;
+      return !mediaRanges.some((range) => index > range.start && index < range.end);
+    })
+    .map((match) => `@keyframes ${match[1]} outside reduced motion preference`);
+}
+
+export function findRawCssColorLiteralViolations(source: string): string[] {
+  const themeStart = source.indexOf('@theme inline');
+  let tokenSource = source;
+  if (themeStart >= 0) {
+    const openBrace = source.indexOf('{', themeStart);
+    if (openBrace >= 0) {
+      const end = findClosingBrace(source, openBrace);
+      tokenSource = `${source.slice(0, themeStart)}${source.slice(end + 1)}`;
+    }
+  }
+
+  return [...tokenSource.matchAll(/#[\da-f]{3,8}\b|\b(?:rgb|hsl)a?\s*\(/gi)]
+    .map((match) => `raw CSS color literal: ${match[0]}`);
 }
 
 export function findRawColorLiteralFiles(
@@ -551,6 +615,10 @@ export function findDynamicFromCalls(
       const prefix = file.source.slice(0, matchIndex);
       const receiverMatch = prefix.match(/([A-Za-z_$][\w$]*)\s*$/);
       const receiver = receiverMatch?.[1] ?? '<unknown>';
+      if (
+        normalizedPath(file.path) === 'src/components/motion/run-motion.ts' &&
+        receiver === 'timeline'
+      ) continue;
       const argumentStart = matchIndex + match[0].length;
       let firstArgumentIndex = argumentStart;
       while (/[\s]/.test(file.source[firstArgumentIndex] ?? '')) firstArgumentIndex += 1;

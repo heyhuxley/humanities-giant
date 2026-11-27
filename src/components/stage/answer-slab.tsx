@@ -52,7 +52,7 @@ export function AnswerSlab({
       aria-pressed={ariaPressed}
       data-slab={letter}
       data-state={state}
-      className={`press flex min-h-14 w-full items-stretch overflow-hidden rounded-sm border text-left text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-70 ${stateStyle(state)}`}
+      className={`press relative flex min-h-14 w-full items-stretch overflow-hidden rounded-sm border text-left text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-70 ${stateStyle(state)}`}
     >
       <span className={`flex min-h-14 w-14 shrink-0 items-center justify-center font-display text-xl ${letterStyle(state)}`}>
         {letter}

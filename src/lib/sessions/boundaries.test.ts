@@ -5,6 +5,8 @@ import {
   checkBoundaries,
   extractImports,
   findAnswerDataFiles,
+  findCssKeyframesOutsideMotionPreference,
+  findForbiddenMotionLibraryFeatures,
   findInvalidClientStageFiles,
   findIdentifierFiles,
   findForbiddenPlayerLifelineFields,
@@ -18,6 +20,7 @@ import {
   findDynamicFromCalls,
   findParticipantIdentifierMatches,
   findRawColorLiteralFiles,
+  findRawCssColorLiteralViolations,
   findStageBoundaryViolations,
   findVotesTableReads,
   isActionFile,
@@ -335,6 +338,11 @@ describe('session import boundaries', () => {
     expect(findMotionImportViolations(files)).toEqual([]);
     expect(findPureMotionBoundaryViolations(files)).toEqual([]);
     expect(findGsapImportViolations(files)).toEqual([]);
+    expect(findForbiddenMotionLibraryFeatures(files)).toEqual([]);
+
+    const globalStyles = readFileSync(join(process.cwd(), 'src', 'app', 'globals.css'), 'utf8');
+    expect(findCssKeyframesOutsideMotionPreference(globalStyles)).toEqual([]);
+    expect(findRawCssColorLiteralViolations(globalStyles)).toEqual([]);
 
     const fakeFiles: SourceFile[] = [
       {
@@ -351,15 +359,32 @@ describe('session import boundaries', () => {
       },
       {
         path: 'src/components/motion/motion-plan.ts',
-        source: "import 'react'; import 'gsap'; const now = Date.now();",
+        source: ["import 'react'; ", 'import ', "'gsap';", ' const now = Date.now();'].join(''),
       },
       {
         path: 'src/components/motion/motion-timings.ts',
         source: 'const random = Math.random(); const timer = setTimeout(() => {}, 1);',
       },
       {
+        path: 'src/components/motion/motion-steps.ts',
+        source: "import 'react';",
+      },
+      {
+        path: 'src/components/motion/run-motion.ts',
+        source: 'const current = Date.now();',
+      },
+      {
+        path: 'src/components/motion/stage-motion.tsx',
+        source: 'const current = Math.random();',
+      },
+      {
         path: 'src/app/play/[sessionId]/page.tsx',
-        source: "import 'gsap'; import { StageMotion } from '../../../components/motion/stage-motion';",
+        source: [
+          'import ', "'gsap'; ",
+          'import(', "'@gsap/react'", '); ',
+          'require(', "'gsap'", '); ',
+          "import { StageMotion } from '../../../components/motion/stage-motion';",
+        ].join(''),
       },
     ];
 
@@ -367,7 +392,24 @@ describe('session import boundaries', () => {
     expect(findMotionImportViolations(fakeFiles).length).toBeGreaterThan(0);
     expect(findPureMotionBoundaryViolations(fakeFiles).length).toBeGreaterThan(0);
     expect(findGsapImportViolations(fakeFiles)).toEqual([
+      'src/app/play/[sessionId]/page.tsx:import:@gsap/react',
       'src/app/play/[sessionId]/page.tsx:import:gsap',
+      'src/app/play/[sessionId]/page.tsx:import:gsap',
+    ]);
+    expect(findForbiddenMotionLibraryFeatures([
+      {
+        path: 'src/components/motion/forbidden.ts',
+        source: `import('${'gsap/' + ['Split', 'Text'].join('')}'); const plugin = ${['Split', 'Text'].join('')};`,
+      },
+    ])).toHaveLength(2);
+    expect(findCssKeyframesOutsideMotionPreference('@keyframes outside {}')).toEqual([
+      '@keyframes outside outside reduced motion preference',
+    ]);
+    expect(findCssKeyframesOutsideMotionPreference(
+      '@media (prefers-reduced-motion: no-preference) { @keyframes inside {} }',
+    )).toEqual([]);
+    expect(findRawCssColorLiteralViolations('.surface { color: #fff; }')).toEqual([
+      'raw CSS color literal: #fff',
     ]);
   });
 
