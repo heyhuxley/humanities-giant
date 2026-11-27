@@ -93,6 +93,12 @@ export function findForbiddenPlayerLifelineFields(
     'src/lib/sessions/player-messages.ts',
   ];
   const allowedFieldsByPath: Record<string, readonly string[]> = {
+    'src/app/play/[sessionId]/page.tsx': [
+      'removed',
+      'hint',
+      'percentages',
+      'notEnoughVotes',
+    ],
     'src/app/play/[sessionId]/contestant-panel.tsx': ['removed'],
     'src/app/play/[sessionId]/audience-panel.tsx': ['removed'],
     'src/components/lifeline-results.tsx': [
@@ -327,6 +333,135 @@ export function findStageBoundaryViolations(
         .map((specifier) => `${filePath}:import:${specifier}`);
       return [...textViolations, ...importViolations];
     })
+    .sort();
+}
+
+export function findMotionIdentifierViolations(
+  files: { path: string; source: string }[],
+): string[] {
+  const forbiddenIdentifiers = [
+    ['correct', 'Index'].join(''),
+    ['correct', '_index'].join(''),
+    ['hint', 'IsCorrect'].join(''),
+    'votes',
+    ['participant', '_id'].join(''),
+    ['session', '_private'].join(''),
+    ['question', '_answers'].join(''),
+  ];
+
+  return files
+    .filter((file) =>
+      isUnder(normalizedPath(file.path), 'src/components/motion') &&
+      !isTestFile(file.path) &&
+      /\.(?:ts|tsx)$/i.test(file.path),
+    )
+    .flatMap((file) => {
+      const filePath = normalizedPath(file.path);
+      return forbiddenIdentifiers
+        .filter((identifier) => {
+          const pattern = new RegExp(`\\b${escapeRegExp(identifier)}\\b`);
+          return pattern.test(file.source);
+        })
+        .map((identifier) => `${filePath}:text:${identifier}`);
+    })
+    .sort();
+}
+
+export function findMotionImportViolations(
+  files: { path: string; source: string }[],
+): string[] {
+  const forbiddenDirectories = [
+    'src/lib/supabase',
+    'src/lib/auth',
+    'src/game',
+  ];
+  const forbiddenModules = [
+    'src/lib/sessions/run-session-event',
+  ];
+
+  return files
+    .filter((file) => isUnder(normalizedPath(file.path), 'src/components/motion'))
+    .flatMap((file) => extractImports(file.source)
+      .map((specifier) => resolveSpecifier(specifier, file.path))
+      .filter((importedPath) =>
+        forbiddenDirectories.some((directory) =>
+          isUnder(importedPath, directory),
+        ) ||
+        forbiddenModules.some((module) =>
+          importedPath === module || importedPath.startsWith(`${module}/`),
+        ) ||
+        isUnder(importedPath, 'src/app') ||
+        specifierBaseName(importedPath) === 'actions',
+      )
+      .map((specifier) => `${normalizedPath(file.path)}:import:${specifier}`),
+    )
+    .sort();
+}
+
+function specifierBaseName(specifier: string): string {
+  return specifier
+    .split('/')
+    .at(-1)
+    ?.replace(/[.]tsx?$/i, '') ?? '';
+}
+
+export function findPureMotionBoundaryViolations(
+  files: { path: string; source: string }[],
+): string[] {
+  const forbiddenImports = ['react', 'next', 'gsap', '@gsap/react'];
+  const forbiddenText = [
+    'Date.now',
+    'Math.random',
+    'setTimeout',
+    'setInterval',
+    'window',
+    'document',
+  ];
+
+  return files
+    .filter((file) =>
+      (
+        normalizedPath(file.path) === 'src/components/motion/motion-plan.ts' ||
+        normalizedPath(file.path) === 'src/components/motion/motion-timings.ts'
+      ),
+    )
+    .flatMap((file) => {
+      const violations: string[] = [];
+      for (const specifier of extractImports(file.source)) {
+        if (
+          forbiddenImports.includes(specifier) ||
+          specifier.startsWith('react/') ||
+          specifier.startsWith('next/') ||
+          specifier.startsWith('gsap/')
+        ) {
+          violations.push(`${normalizedPath(file.path)}:import:${specifier}`);
+        }
+      }
+      for (const forbidden of forbiddenText) {
+        if (file.source.includes(forbidden)) {
+          violations.push(`${normalizedPath(file.path)}:text:${forbidden}`);
+        }
+      }
+      return violations;
+    })
+    .sort();
+}
+
+export function findGsapImportViolations(
+  files: { path: string; source: string }[],
+): string[] {
+  return files
+    .filter((file) => !isTestFile(file.path))
+    .flatMap((file) => extractImports(file.source)
+      .filter((specifier) =>
+        specifier === 'gsap' ||
+        specifier === '@gsap/react' ||
+        specifier.startsWith('gsap/') ||
+        specifier.startsWith('@gsap/react/'),
+      )
+      .filter(() => !isUnder(normalizedPath(file.path), 'src/components/motion'))
+      .map((specifier) => `${normalizedPath(file.path)}:import:${specifier}`),
+    )
     .sort();
 }
 

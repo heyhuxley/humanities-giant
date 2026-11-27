@@ -8,8 +8,12 @@ import {
   findInvalidClientStageFiles,
   findIdentifierFiles,
   findForbiddenPlayerLifelineFields,
+  findGsapImportViolations,
   findImportsFromDirectories,
   findImportsOfFiles,
+  findMotionIdentifierViolations,
+  findMotionImportViolations,
+  findPureMotionBoundaryViolations,
   findUnexpectedIdentifierFiles,
   findDynamicFromCalls,
   findParticipantIdentifierMatches,
@@ -324,6 +328,61 @@ describe('session import boundaries', () => {
     expect(paths.has('src/app/host/sessions/[id]/page.tsx')).toBe(true);
     expect(paths.has('src/app/host/sessions/[id]/actions.ts')).toBe(true);
     expect(checkBoundaries(files)).toEqual([]);
+  });
+
+  it('keeps motion display data and dependencies isolated', () => {
+    expect(findMotionIdentifierViolations(files)).toEqual([]);
+    expect(findMotionImportViolations(files)).toEqual([]);
+    expect(findPureMotionBoundaryViolations(files)).toEqual([]);
+    expect(findGsapImportViolations(files)).toEqual([]);
+
+    const fakeFiles: SourceFile[] = [
+      {
+        path: 'src/components/motion/unsafe.ts',
+        source: [
+          "import '@/lib/supabase/admin';",
+          "import '@/lib/auth/require-host';",
+          "import '@/lib/sessions/run-session-event';",
+          "import '@/app/play/[sessionId]/actions';",
+          "import '@/game/apply-event';",
+          'const forbidden = correctIndex;',
+          'const privateAnswer = session_private;',
+        ].join('\n'),
+      },
+      {
+        path: 'src/components/motion/motion-plan.ts',
+        source: "import 'react'; import 'gsap'; const now = Date.now();",
+      },
+      {
+        path: 'src/components/motion/motion-timings.ts',
+        source: 'const random = Math.random(); const timer = setTimeout(() => {}, 1);',
+      },
+      {
+        path: 'src/app/play/[sessionId]/page.tsx',
+        source: "import 'gsap'; import { StageMotion } from '../../../components/motion/stage-motion';",
+      },
+    ];
+
+    expect(findMotionIdentifierViolations(fakeFiles).length).toBeGreaterThan(0);
+    expect(findMotionImportViolations(fakeFiles).length).toBeGreaterThan(0);
+    expect(findPureMotionBoundaryViolations(fakeFiles).length).toBeGreaterThan(0);
+    expect(findGsapImportViolations(fakeFiles)).toEqual([
+      'src/app/play/[sessionId]/page.tsx:import:gsap',
+    ]);
+  });
+
+  it('imports StageMotion only as a component on the play page', () => {
+    const page = files.find((file) =>
+      file.path === 'src/app/play/[sessionId]/page.tsx',
+    );
+    expect(page).toBeDefined();
+    if (!page) return;
+
+    const stageImports = extractImports(page.source).filter((specifier) =>
+      resolveSpecifier(specifier, page.path) === 'src/components/motion/stage-motion',
+    );
+    expect(stageImports).toHaveLength(1);
+    expect(page.source).not.toMatch(/\b(?:gsap|@gsap\/react)\b/);
   });
 
   it('detects the forbidden database answer column in fake sources', () => {

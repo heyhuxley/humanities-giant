@@ -2,9 +2,13 @@ import { notFound } from 'next/navigation';
 import { readCurrentQuestion, readPublicState } from '../../../lib/sessions/read-public-state';
 import { buildLadderRows, formatNaira } from '../../../lib/sessions/ladder-view';
 import { createClient } from '../../../lib/supabase/server';
+import { optionAvailability } from '../../../lib/sessions/lifeline-view';
+import { optionStates } from '../../../lib/sessions/reveal-view';
 import { LiveSessionRefresh } from '../../../components/live-session-refresh';
 import { Card } from '../../../components/stage/card';
 import { Spotlight } from '../../../components/stage/spotlight';
+import { StageMotion } from '../../../components/motion/stage-motion';
+import type { MotionSnapshot, MotionStatus, SlabView } from '../../../components/motion/motion-plan';
 import { CountdownTimer } from '../../../components/countdown-timer';
 import { FinalResult } from '../../../components/final-result';
 import { MoneyLadder } from '../../../components/money-ladder';
@@ -183,6 +187,48 @@ export default async function PlayPage({
   ) : null;
   // eslint-disable-next-line react-hooks/purity
   const serverNowMs = Date.now();
+  const motionStatus: MotionStatus =
+    publicState.status === 'waiting' ||
+    publicState.status === 'question_active' ||
+    publicState.status === 'locked' ||
+    publicState.status === 'revealed' ||
+    publicState.status === 'finished'
+      ? publicState.status
+      : 'unknown';
+  const motionSlabs: [SlabView, SlabView, SlabView, SlabView] =
+    showQuestionScreen
+      ? (() => {
+          const states = optionStates({
+            lockedAnswer: publicState.lockedAnswer,
+            correctIndex: publicState.correctIndex,
+            revealed:
+              publicState.status === 'revealed' ||
+              publicState.status === 'finished',
+          });
+          const available = optionAvailability(publicState.lifelines.fiftyFifty.removed);
+          const mapSlab = (
+            index: 0 | 1 | 2 | 3,
+          ): SlabView => {
+            if (states[index].state === 'neutral') {
+              return available[index] ? 'neutral' : 'removed';
+            }
+            return states[index].state;
+          };
+          return [mapSlab(0), mapSlab(1), mapSlab(2), mapSlab(3)];
+        })()
+      : ['neutral', 'neutral', 'neutral', 'neutral'];
+  const motionSnapshot: MotionSnapshot = {
+    position: publicState.position ?? 0,
+    status: motionStatus,
+    slabs: motionSlabs,
+    lifelineResults: {
+      fiftyFifty: publicState.lifelines.fiftyFifty.removed !== null,
+      phone: publicState.lifelines.phone.hint !== null,
+      audience:
+        publicState.lifelines.audience.percentages !== null ||
+        publicState.lifelines.audience.notEnoughVotes,
+    },
+  };
 
   return (
     <main
@@ -294,99 +340,101 @@ export default async function PlayPage({
           </Card>
         </section>
       ) : (
-        <section className={isAnsweringView ? 'space-y-6' : 'space-y-3'}>
-          <h2 className="text-lg font-semibold">Status: {statusLabel(publicState.status)}</h2>
-          {isAnsweringView ? (
-            <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
-              <div className="min-w-0 space-y-5">
-                <header className="grid gap-3 border-y border-rule bg-slab px-4 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,1.5fr)_auto] sm:items-center">
-                  {publicState.position !== null ? (
-                    <p className="font-body text-sm font-semibold uppercase tracking-widest text-bone-muted">
-                      Question {publicState.position}
-                    </p>
-                  ) : null}
-                  {currentQuestion ? (
-                    <CountdownTimer
-                      endsAtMs={publicState.questionEndsAt}
-                      serverNowMs={serverNowMs}
-                      active={publicState.status === 'question_active'}
-                      sessionId={sessionId}
-                      knockAction={knockAction}
-                    />
-                  ) : null}
-                  {publicState.amountAtStake !== null ? (
-                    <p className="font-display text-xl font-semibold tabular-nums text-brass">
-                      {formatNaira(publicState.amountAtStake)}
-                    </p>
-                  ) : null}
-                </header>
-                {playerPanel}
-              </div>
-              {publicState.position !== null && publicState.position >= 1 ? (
-                <MoneyLadder
-                  position={publicState.position}
-                  status={publicState.status}
-                  lastResult={publicState.lastResult}
-                />
-              ) : null}
-            </div>
-          ) : (
-            <>
-              {publicState.position !== null && publicState.position >= 1 ? (
-                <MoneyLadder
-                  position={publicState.position}
-                  status={publicState.status}
-                  lastResult={publicState.lastResult}
-                />
-              ) : null}
-              {currentQuestion ? (
-                <CountdownTimer
-                  endsAtMs={publicState.questionEndsAt}
-                  serverNowMs={serverNowMs}
-                  active={publicState.status === 'question_active'}
-                  sessionId={sessionId}
-                  knockAction={knockAction}
-                />
-              ) : null}
-              {publicState.status === 'finished' ? null : playerPanel}
-              {!showQuestionScreen && currentQuestion ? (
-                <div className="space-y-2">
-                  <p>{currentQuestion.text}</p>
-                  <ol className="list-inside list-decimal space-y-1">
-                    {currentQuestion.options.map((option, index) => <li key={index}>{option}</li>)}
-                  </ol>
-                  {publicState.status === 'revealed' ? (
-                    <p>Waiting for the host to continue</p>
-                  ) : null}
+        <StageMotion snapshot={motionSnapshot}>
+          <section className={isAnsweringView ? 'space-y-6' : 'space-y-3'}>
+            <h2 className="text-lg font-semibold">Status: {statusLabel(publicState.status)}</h2>
+            {isAnsweringView ? (
+              <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+                <div className="min-w-0 space-y-5">
+                  <header className="grid gap-3 border-y border-rule bg-slab px-4 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,1.5fr)_auto] sm:items-center">
+                    {publicState.position !== null ? (
+                      <p className="font-body text-sm font-semibold uppercase tracking-widest text-bone-muted">
+                        Question {publicState.position}
+                      </p>
+                    ) : null}
+                    {currentQuestion ? (
+                      <CountdownTimer
+                        endsAtMs={publicState.questionEndsAt}
+                        serverNowMs={serverNowMs}
+                        active={publicState.status === 'question_active'}
+                        sessionId={sessionId}
+                        knockAction={knockAction}
+                      />
+                    ) : null}
+                    {publicState.amountAtStake !== null ? (
+                      <p className="font-display text-xl font-semibold tabular-nums text-brass">
+                        {formatNaira(publicState.amountAtStake)}
+                      </p>
+                    ) : null}
+                  </header>
+                  {playerPanel}
                 </div>
-              ) : null}
-            </>
-          )}
-          {(publicState.status === 'question_active' ||
-            publicState.status === 'locked') &&
-          !showQuestionScreen &&
-          currentQuestion === null ? (
-            <p>Question unavailable</p>
-          ) : null}
-          {publicState.status === 'finished' ? (
-            <FinalResult
-              winnings={publicState.winnings}
-              finishReason={publicState.finishReason}
-              position={publicState.position}
-              lastResult={publicState.lastResult}
-              correctIndex={publicState.correctIndex}
-              contestantName={participants.find((participant) =>
-                participant.id === publicState.contestantId,
-              )?.display_name ?? null}
-              lifelinesUsed={{
-                fiftyFifty: publicState.lifelines.fiftyFifty.used,
-                phone: publicState.lifelines.phone.used,
-                audience: publicState.lifelines.audience.used,
-              }}
-              question={currentQuestion}
-            />
-          ) : null}
-        </section>
+                {publicState.position !== null && publicState.position >= 1 ? (
+                  <MoneyLadder
+                    position={publicState.position}
+                    status={publicState.status}
+                    lastResult={publicState.lastResult}
+                  />
+                ) : null}
+              </div>
+            ) : (
+              <>
+                {publicState.position !== null && publicState.position >= 1 ? (
+                  <MoneyLadder
+                    position={publicState.position}
+                    status={publicState.status}
+                    lastResult={publicState.lastResult}
+                  />
+                ) : null}
+                {currentQuestion ? (
+                  <CountdownTimer
+                    endsAtMs={publicState.questionEndsAt}
+                    serverNowMs={serverNowMs}
+                    active={publicState.status === 'question_active'}
+                    sessionId={sessionId}
+                    knockAction={knockAction}
+                  />
+                ) : null}
+                {publicState.status === 'finished' ? null : playerPanel}
+                {!showQuestionScreen && currentQuestion ? (
+                  <div className="space-y-2">
+                    <p>{currentQuestion.text}</p>
+                    <ol className="list-inside list-decimal space-y-1">
+                      {currentQuestion.options.map((option, index) => <li key={index}>{option}</li>)}
+                    </ol>
+                    {publicState.status === 'revealed' ? (
+                      <p>Waiting for the host to continue</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
+            )}
+            {(publicState.status === 'question_active' ||
+              publicState.status === 'locked') &&
+            !showQuestionScreen &&
+            currentQuestion === null ? (
+              <p>Question unavailable</p>
+            ) : null}
+            {publicState.status === 'finished' ? (
+              <FinalResult
+                winnings={publicState.winnings}
+                finishReason={publicState.finishReason}
+                position={publicState.position}
+                lastResult={publicState.lastResult}
+                correctIndex={publicState.correctIndex}
+                contestantName={participants.find((participant) =>
+                  participant.id === publicState.contestantId,
+                )?.display_name ?? null}
+                lifelinesUsed={{
+                  fiftyFifty: publicState.lifelines.fiftyFifty.used,
+                  phone: publicState.lifelines.phone.used,
+                  audience: publicState.lifelines.audience.used,
+                }}
+                question={currentQuestion}
+              />
+            ) : null}
+          </section>
+        </StageMotion>
       )}
     </main>
   );
