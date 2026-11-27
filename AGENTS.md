@@ -32,7 +32,7 @@ Rules for any AI agent working in this repo. Read this file and `SPEC.md` before
 - Keep database access in one place (a data layer), not scattered through components.
 - Components render and call actions. They do not contain game rules.
 
-## Security rules (never break these)
+## Security rules (never break these)   
 
 - The correct answer is never sent to a player before the `revealed` state. It must not appear in any query, API response, realtime payload, prop or log a player can reach.
 - Correct answers live only in `question_answers`, protected by Row Level Security.
@@ -40,6 +40,8 @@ Rules for any AI agent working in this repo. Read this file and `SPEC.md` before
 - The Supabase service role key is server-only. Never import it into client code, never prefix it with `NEXT_PUBLIC_`, never commit it.
 - Participant limits, lifeline use and timer deadlines are enforced on the server, not only in the UI.
 - Never commit `.env` files or secrets.
+- Database changes only through files in `supabase/migrations/`
+- Never put the service role key in any file outside `.env.local`
 
 ## Conventions
 
