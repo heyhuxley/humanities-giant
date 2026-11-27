@@ -3,6 +3,9 @@
 import { useActionState, useEffect, useState } from 'react';
 import type { Option } from '../../../game/types';
 import { LifelineResults } from '../../../components/lifeline-results';
+import { AnswerSlab } from '../../../components/stage/answer-slab';
+import { GiantNumeral } from '../../../components/stage/giant-numeral';
+import { Spotlight } from '../../../components/stage/spotlight';
 import { formatNaira } from '../../../lib/sessions/ladder-view';
 import { optionAvailability } from '../../../lib/sessions/lifeline-view';
 import type { PublicLifelines } from '../../../lib/sessions/read-public-state';
@@ -133,14 +136,24 @@ export function ContestantPanel({
     : null;
 
   return (
-    <section className="space-y-4">
-      {position !== null && amountAtStake !== null ? (
-        <p className="font-medium">
+    <section className="space-y-5">
+      {status !== 'question_active' && status !== 'locked' &&
+      position !== null && amountAtStake !== null ? (
+        <p className="font-display text-brass">
           Question {position} <span aria-hidden="true">|</span>{' '}
           {formatNaira(amountAtStake)}
         </p>
       ) : null}
-      <h2 className="text-lg font-semibold">{question.text}</h2>
+      <div className="relative overflow-hidden border-y border-rule py-8 sm:py-10">
+        <Spotlight>
+          <div className="relative mx-auto max-w-3xl px-3 text-center">
+            <GiantNumeral value={position ?? 0} />
+            <h2 className="relative font-display text-lg font-semibold leading-snug text-bone text-pretty sm:text-xl">
+              {question.text}
+            </h2>
+          </div>
+        </Spotlight>
+      </div>
       <LifelineResults lifelines={lifelines} />
       {selectedLifeline === null ? (
         <div className="grid grid-cols-3 gap-2">
@@ -160,7 +173,7 @@ export function ContestantPanel({
                 disabled={lifelineDisabled}
                 aria-disabled={lifelineDisabled}
                 onClick={() => setSelectedLifeline(choice)}
-                className="min-h-11 rounded-lg border border-stone-300 bg-white px-2 py-2 font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-11 rounded-sm border border-rule bg-slab px-2 py-2 font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60 transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
               >
                 {choice.label}
                 {used ? (
@@ -176,7 +189,7 @@ export function ContestantPanel({
       ) : (
         <div
           role="alert"
-          className="space-y-2 rounded-lg border border-stone-300 p-3"
+          className="space-y-2 rounded-sm border border-rule bg-slab p-3"
         >
           <p>Use {selectedLifeline.label}?</p>
           <form action={lifelineFormAction} className="flex gap-2">
@@ -190,7 +203,7 @@ export function ContestantPanel({
                 !effectiveOpen ||
                 lockedAnswer !== null
               }
-              className="min-h-11 flex-1 rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-h-11 flex-1 rounded-sm border border-ember bg-ember px-4 py-3 font-semibold text-ink hover:bg-ember/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60 transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
             >
               Confirm
             </button>
@@ -198,7 +211,7 @@ export function ContestantPanel({
               type="button"
               disabled={lifelinePending}
               onClick={() => setSelectedLifeline(null)}
-              className="min-h-11 flex-1 rounded-lg border border-stone-300 px-4 py-3 font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-h-11 flex-1 rounded-sm border border-rule bg-slab px-4 py-3 font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60 transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
             >
               Cancel
             </button>
@@ -206,9 +219,9 @@ export function ContestantPanel({
         </div>
       )}
       {lifelineActionState.error ? (
-        <p role="alert" className="text-red-700">{lifelineActionState.error}</p>
+        <p role="alert" className="text-rose">{lifelineActionState.error}</p>
       ) : null}
-      <div className="grid gap-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {question.options.map((option, index) => {
           const optionIndex = index as Option;
           const selected = tentative === optionIndex;
@@ -218,42 +231,29 @@ export function ContestantPanel({
             !available &&
             optionState.state !== 'correct' &&
             optionState.state !== 'wrong';
+          const slabState = optionState.state === 'correct' || optionState.state === 'wrong' || optionState.state === 'locked'
+            ? optionState.state
+            : removedLabelApplies
+              ? 'removed'
+              : selected
+                ? 'selected'
+                : 'neutral';
           return (
-            <button
+            <AnswerSlab
               key={optionIndex}
+              letter={OPTION_LABELS[optionIndex]}
+              text={option}
+              state={slabState}
+              icon={slabState === 'selected' ? '●' : slabState === 'removed' ? '✗' : optionState.icon || undefined}
+              label={slabState === 'selected' ? 'Selected' : slabState === 'removed' ? 'Removed' : optionState.label || undefined}
+              ariaPressed={selected}
               type="button"
               disabled={disabled || !available}
               onClick={() => {
                 setTentative(optionIndex);
                 setConfirming(false);
               }}
-              className={`min-h-11 rounded-lg border px-3 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
-                optionState.state === 'correct'
-                  ? 'border-green-700 bg-green-100 font-semibold'
-                  : optionState.state === 'wrong'
-                    ? 'border-red-700 bg-red-100 font-semibold'
-                    : !available
-                      ? 'border-stone-400 bg-stone-100 text-stone-500'
-                    : optionState.state === 'locked'
-                      ? 'border-amber-700 bg-amber-100 font-semibold'
-                      : selected
-                        ? 'border-blue-700 bg-blue-100'
-                        : 'border-stone-300 bg-white'
-              }`}
-            >
-              <span className="font-bold">{OPTION_LABELS[optionIndex]}.</span>{' '}
-              {option}
-              {optionState.icon ? (
-                <span aria-hidden="true" className="ml-2">{optionState.icon}</span>
-              ) : null}
-              {removedLabelApplies ? (
-                <span aria-hidden="true" className="ml-2">✗</span>
-              ) : null}
-              {optionState.label ? <span className="ml-1 font-semibold">{optionState.label}</span> : null}
-              {removedLabelApplies ? (
-                <span className="ml-1 font-semibold">Removed</span>
-              ) : null}
-            </button>
+            />
           );
         })}
       </div>
@@ -270,12 +270,12 @@ export function ContestantPanel({
                   type="button"
                   disabled={walkAwayPending}
                   onClick={() => setWalkAwayConfirming(true)}
-                  className="min-h-11 w-full rounded-lg border border-stone-300 px-4 py-3 text-left font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="min-h-11 w-full rounded-sm border border-rule bg-slab px-4 py-3 text-left font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60 transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
                 >
                   Walk away with {formatNaira(walkAwayAmount)}
                 </button>
               ) : (
-                <div role="alert" className="space-y-2 rounded-lg border border-stone-300 p-3">
+                <div role="alert" className="space-y-2 rounded-sm border border-rule bg-slab p-3">
                   <p>
                     Walk away with {formatNaira(walkAwayAmount)}? This ends the game for everyone.
                   </p>
@@ -284,7 +284,7 @@ export function ContestantPanel({
                     <button
                       type="submit"
                       disabled={walkAwayPending}
-                      className="min-h-11 flex-1 rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="min-h-11 flex-1 rounded-sm border border-ember bg-ember px-4 py-3 font-semibold text-ink hover:bg-ember/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60 transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
                     >
                       Confirm
                     </button>
@@ -292,7 +292,7 @@ export function ContestantPanel({
                       type="button"
                       disabled={walkAwayPending}
                       onClick={() => setWalkAwayConfirming(false)}
-                      className="min-h-11 flex-1 rounded-lg border border-stone-300 px-4 py-3 font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="min-h-11 flex-1 rounded-sm border border-rule bg-slab px-4 py-3 font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60 transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
                     >
                       Cancel
                     </button>
@@ -300,7 +300,7 @@ export function ContestantPanel({
                 </div>
               )}
               {walkAwayActionState.error ? (
-                <p role="alert" className="text-red-700">{walkAwayActionState.error}</p>
+                <p role="alert" className="text-rose">{walkAwayActionState.error}</p>
               ) : null}
             </div>
           ) : null}
@@ -312,7 +312,7 @@ export function ContestantPanel({
           type="button"
           disabled={disabled}
           onClick={() => setConfirming(true)}
-          className="min-h-11 w-full rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+          className="min-h-11 w-full rounded-sm border border-ember bg-ember px-4 py-3 font-semibold text-ink hover:bg-ember/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
         >
           Final answer
         </button>
@@ -325,7 +325,7 @@ export function ContestantPanel({
             <button
               type="submit"
               disabled={disabled}
-              className="min-h-11 flex-1 rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+              className="min-h-11 flex-1 rounded-sm border border-ember bg-ember px-4 py-3 font-semibold text-ink hover:bg-ember/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
             >
               Confirm
             </button>
@@ -333,7 +333,7 @@ export function ContestantPanel({
               type="button"
               disabled={disabled}
               onClick={() => setConfirming(false)}
-              className="min-h-11 flex-1 rounded-lg border border-stone-300 px-4 py-3 font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+              className="min-h-11 flex-1 rounded-sm border border-rule bg-slab px-4 py-3 font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
             >
               Change
             </button>
@@ -343,7 +343,7 @@ export function ContestantPanel({
 
       {resultMessage ? <p role="status">{resultMessage}</p> : null}
       {actionState.error ? (
-        <p role="alert" className="text-red-700">{actionState.error}</p>
+        <p role="alert" className="text-rose">{actionState.error}</p>
       ) : null}
     </section>
   );

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { readCurrentQuestion, readPublicState } from '../../../lib/sessions/read-public-state';
-import { buildLadderRows } from '../../../lib/sessions/ladder-view';
+import { buildLadderRows, formatNaira } from '../../../lib/sessions/ladder-view';
 import { createClient } from '../../../lib/supabase/server';
 import { LiveSessionRefresh } from '../../../components/live-session-refresh';
 import { CountdownTimer } from '../../../components/countdown-timer';
@@ -140,22 +140,75 @@ export default async function PlayPage({
       publicState.status === 'revealed' ||
       publicState.status === 'finished') &&
     currentQuestion !== null;
+  const isAnsweringView =
+    (publicState.status === 'question_active' || publicState.status === 'locked') &&
+    currentQuestion !== null;
+  const playerPanel = showQuestionScreen && currentQuestion ? (
+    player.id === publicState.contestantId ? (
+      <ContestantPanel
+        key={publicState.position}
+        sessionId={sessionId}
+        position={publicState.position}
+        amountAtStake={publicState.amountAtStake}
+        question={currentQuestion}
+        lockedAnswer={publicState.lockedAnswer}
+        correctIndex={publicState.correctIndex}
+        lastResult={publicState.lastResult}
+        status={publicState.status}
+        open={publicState.status === 'question_active'}
+        lifelines={publicState.lifelines}
+        submitAction={submitAnswerAction}
+        lifelineAction={useLifelineAction}
+        walkAwayAction={walkAwayAction}
+        walkAwayAmount={walkAwayAmount}
+      />
+    ) : (
+      <AudiencePanel
+        key={publicState.position}
+        sessionId={sessionId}
+        position={publicState.position}
+        amountAtStake={publicState.amountAtStake}
+        question={currentQuestion}
+        lockedAnswer={publicState.lockedAnswer}
+        correctIndex={publicState.correctIndex}
+        lastResult={publicState.lastResult}
+        status={publicState.status}
+        open={publicState.status === 'question_active'}
+        lifelines={publicState.lifelines}
+        voteAction={castVoteAction}
+      />
+    )
+  ) : null;
   // eslint-disable-next-line react-hooks/purity
   const serverNowMs = Date.now();
 
   return (
-    <main className="mx-auto w-full max-w-xl space-y-6 p-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-bold">Who Wants to Be a Humanities Giant</h1>
+    <main className={isAnsweringView
+      ? 'film-grain mx-auto min-h-screen w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8'
+      : 'mx-auto w-full max-w-xl space-y-6 p-6'}>
+      <header className={isAnsweringView
+        ? 'flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-4'
+        : 'space-y-2'}>
+        <h1 className={isAnsweringView
+          ? 'font-display text-3xl font-semibold text-bone text-pretty'
+          : 'text-2xl font-bold'}>
+          Who Wants to Be a Humanities Giant
+        </h1>
         <LiveSessionRefresh sessionId={sessionId} />
       </header>
 
-      <section className="space-y-2">
+      <section className={isAnsweringView
+        ? 'flex flex-wrap items-center justify-between gap-2 text-bone-muted'
+        : 'space-y-2'}>
         <p>
           Playing as <span className="font-semibold">{player.display_name}</span>
         </p>
         {player.role === 'contestant' ? (
-          <p className="rounded bg-amber-100 p-3 font-semibold">You are in the hot seat</p>
+          <p className={isAnsweringView
+            ? 'rounded-sm border border-brass bg-slab px-3 py-2 font-semibold text-brass'
+            : 'rounded bg-amber-100 p-3 font-semibold'}>
+            You are in the hot seat
+          </p>
         ) : null}
       </section>
 
@@ -174,72 +227,74 @@ export default async function PlayPage({
           </ul>
         </section>
       ) : (
-        <section className="space-y-3">
+        <section className={isAnsweringView ? 'space-y-6' : 'space-y-3'}>
           <h2 className="text-lg font-semibold">Status: {statusLabel(publicState.status)}</h2>
-          {publicState.position !== null && publicState.position >= 1 ? (
-            <MoneyLadder
-              position={publicState.position}
-              status={publicState.status}
-              lastResult={publicState.lastResult}
-            />
-          ) : null}
-          {currentQuestion ? (
-            <CountdownTimer
-              endsAtMs={publicState.questionEndsAt}
-              serverNowMs={serverNowMs}
-              active={publicState.status === 'question_active'}
-              sessionId={sessionId}
-              knockAction={knockAction}
-            />
-          ) : null}
-          {showQuestionScreen && currentQuestion ? (
-            <>
-              {player.id === publicState.contestantId ? (
-                <ContestantPanel
-                  key={publicState.position}
-                  sessionId={sessionId}
+          {isAnsweringView ? (
+            <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+              <div className="min-w-0 space-y-5">
+                <header className="grid gap-3 border-y border-rule bg-slab px-4 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,1.5fr)_auto] sm:items-center">
+                  {publicState.position !== null ? (
+                    <p className="font-body text-sm font-semibold uppercase tracking-widest text-bone-muted">
+                      Question {publicState.position}
+                    </p>
+                  ) : null}
+                  {currentQuestion ? (
+                    <CountdownTimer
+                      endsAtMs={publicState.questionEndsAt}
+                      serverNowMs={serverNowMs}
+                      active={publicState.status === 'question_active'}
+                      sessionId={sessionId}
+                      knockAction={knockAction}
+                    />
+                  ) : null}
+                  {publicState.amountAtStake !== null ? (
+                    <p className="font-display text-xl font-semibold tabular-nums text-brass">
+                      {formatNaira(publicState.amountAtStake)}
+                    </p>
+                  ) : null}
+                </header>
+                {playerPanel}
+              </div>
+              {publicState.position !== null && publicState.position >= 1 ? (
+                <MoneyLadder
                   position={publicState.position}
-                  amountAtStake={publicState.amountAtStake}
-                  question={currentQuestion}
-                  lockedAnswer={publicState.lockedAnswer}
-                  correctIndex={publicState.correctIndex}
-                  lastResult={publicState.lastResult}
                   status={publicState.status}
-                  open={publicState.status === 'question_active'}
-                  lifelines={publicState.lifelines}
-                  submitAction={submitAnswerAction}
-                  lifelineAction={useLifelineAction}
-                  walkAwayAction={walkAwayAction}
-                  walkAwayAmount={walkAwayAmount}
-                />
-              ) : (
-                <AudiencePanel
-                  key={publicState.position}
-                  sessionId={sessionId}
-                  position={publicState.position}
-                  amountAtStake={publicState.amountAtStake}
-                  question={currentQuestion}
-                  lockedAnswer={publicState.lockedAnswer}
-                  correctIndex={publicState.correctIndex}
                   lastResult={publicState.lastResult}
-                  status={publicState.status}
-                  open={publicState.status === 'question_active'}
-                  lifelines={publicState.lifelines}
-                  voteAction={castVoteAction}
                 />
-              )}
-            </>
-          ) : currentQuestion ? (
-            <div className="space-y-2">
-              <p>{currentQuestion.text}</p>
-              <ol className="list-inside list-decimal space-y-1">
-                {currentQuestion.options.map((option, index) => <li key={index}>{option}</li>)}
-              </ol>
-              {publicState.status === 'revealed' ? (
-                <p>Waiting for the host to continue</p>
               ) : null}
             </div>
-          ) : null}
+          ) : (
+            <>
+              {publicState.position !== null && publicState.position >= 1 ? (
+                <MoneyLadder
+                  position={publicState.position}
+                  status={publicState.status}
+                  lastResult={publicState.lastResult}
+                />
+              ) : null}
+              {currentQuestion ? (
+                <CountdownTimer
+                  endsAtMs={publicState.questionEndsAt}
+                  serverNowMs={serverNowMs}
+                  active={publicState.status === 'question_active'}
+                  sessionId={sessionId}
+                  knockAction={knockAction}
+                />
+              ) : null}
+              {playerPanel}
+              {!showQuestionScreen && currentQuestion ? (
+                <div className="space-y-2">
+                  <p>{currentQuestion.text}</p>
+                  <ol className="list-inside list-decimal space-y-1">
+                    {currentQuestion.options.map((option, index) => <li key={index}>{option}</li>)}
+                  </ol>
+                  {publicState.status === 'revealed' ? (
+                    <p>Waiting for the host to continue</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          )}
           {(publicState.status === 'question_active' ||
             publicState.status === 'locked') &&
           !showQuestionScreen &&

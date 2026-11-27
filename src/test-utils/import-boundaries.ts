@@ -282,6 +282,83 @@ export function findParticipantIdentifierMatches(source: string): string[] {
   return matches;
 }
 
+export function findStageBoundaryViolations(
+  files: { path: string; source: string }[],
+): string[] {
+  const forbiddenText = [
+    ['correct', 'Index'].join(''),
+    ['correct', '_index'].join(''),
+    ['hint', 'IsCorrect'].join(''),
+    ['session', '_private'].join(''),
+    ['question', '_answers'].join(''),
+    ['participant', '_id'].join(''),
+  ];
+  const forbiddenDirectories = ['src/lib/supabase', 'src/lib/auth', 'src/game'];
+  const forbiddenModules = [
+    'src/lib/sessions/run-session-event',
+    'src/lib/supabase/admin',
+  ];
+
+  return files
+    .filter((file) =>
+      isUnder(normalizedPath(file.path), 'src/components/stage') &&
+      !isTestFile(file.path) &&
+      (file.path.endsWith('.ts') || file.path.endsWith('.tsx')),
+    )
+    .flatMap((file) => {
+      const filePath = normalizedPath(file.path);
+      const source = file.source.toLowerCase();
+      const textViolations = forbiddenText
+        .filter((text) => source.includes(text.toLowerCase()))
+        .map((text) => `${filePath}:text:${text}`);
+      const importViolations = extractImports(file.source)
+        .filter((specifier) => {
+          const importedPath = resolveSpecifier(specifier, file.path);
+          const forbiddenDirectory = forbiddenDirectories.some((directory) =>
+            isUnder(importedPath, directory),
+          );
+          const forbiddenModule = forbiddenModules.some((module) =>
+            importedPath === module || importedPath.startsWith(`${module}/`),
+          );
+          const importedName = specifier.split('/').at(-1)?.replace(/[.]tsx?$/i, '');
+          return forbiddenDirectory || forbiddenModule || importedName === 'actions';
+        })
+        .map((specifier) => `${filePath}:import:${specifier}`);
+      return [...textViolations, ...importViolations];
+    })
+    .sort();
+}
+
+export function findRawColorLiteralFiles(
+  files: { path: string; source: string }[],
+): string[] {
+  const rawColorPattern = /#[0-9a-fA-F]{3,8}|(rgb|hsl)[ ]*[(]/i;
+  return files
+    .filter((file) => !isTestFile(file.path) && file.path.endsWith('.tsx'))
+    .filter((file) => {
+      const path = normalizedPath(file.path);
+      return isUnder(path, 'src/components') || isUnder(path, 'src/app');
+    })
+    .filter((file) => rawColorPattern.test(file.source))
+    .map((file) => normalizedPath(file.path))
+    .sort();
+}
+
+export function findInvalidClientStageFiles(
+  files: { path: string; source: string }[],
+): string[] {
+  const onClickPropPattern = /onClick[ ]*[?]?[ ]*:|onClick[ ]*=/;
+  return files
+    .filter((file) =>
+      isUnder(normalizedPath(file.path), 'src/components/stage') &&
+      !isTestFile(file.path) &&
+      (file.path.endsWith('.ts') || file.path.endsWith('.tsx')),
+    )
+    .filter((file) => isClientFile(file.source) && !onClickPropPattern.test(file.source))
+    .map((file) => normalizedPath(file.path))
+    .sort();
+}
+
 export type DynamicFromCall = {
   filePath: string;
   line: number;

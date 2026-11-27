@@ -3,6 +3,9 @@
 import { useActionState, useEffect, useState } from 'react';
 import type { Option } from '../../../game/types';
 import { LifelineResults } from '../../../components/lifeline-results';
+import { AnswerSlab } from '../../../components/stage/answer-slab';
+import { GiantNumeral } from '../../../components/stage/giant-numeral';
+import { Spotlight } from '../../../components/stage/spotlight';
 import { formatNaira } from '../../../lib/sessions/ladder-view';
 import { optionAvailability } from '../../../lib/sessions/lifeline-view';
 import type { PublicLifelines } from '../../../lib/sessions/read-public-state';
@@ -70,16 +73,26 @@ export function AudiencePanel({
     : null;
 
   return (
-    <section className="space-y-4">
-      {position !== null && amountAtStake !== null ? (
-        <p className="font-medium">
+    <section className="space-y-5">
+      {status !== 'question_active' && status !== 'locked' &&
+      position !== null && amountAtStake !== null ? (
+        <p className="font-display text-brass">
           Question {position} <span aria-hidden="true">|</span>{' '}
           {formatNaira(amountAtStake)}
         </p>
       ) : null}
-      <h2 className="text-lg font-semibold">{question.text}</h2>
+      <div className="relative overflow-hidden border-y border-rule py-8 sm:py-10">
+        <Spotlight>
+          <div className="relative mx-auto max-w-3xl px-3 text-center">
+            <GiantNumeral value={position ?? 0} />
+            <h2 className="relative font-display text-lg font-semibold leading-snug text-bone text-pretty sm:text-xl">
+              {question.text}
+            </h2>
+          </div>
+        </Spotlight>
+      </div>
       <LifelineResults lifelines={lifelines} />
-      <form action={formAction} className="grid gap-2">
+      <form action={formAction} className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <input type="hidden" name="sessionId" value={sessionId} />
         {question.options.map((option, index) => {
           const optionIndex = index as Option;
@@ -90,44 +103,28 @@ export function AudiencePanel({
             !available &&
             optionState.state !== 'correct' &&
             optionState.state !== 'wrong';
+          const slabState = optionState.state === 'correct' || optionState.state === 'wrong' || optionState.state === 'locked'
+            ? optionState.state
+            : removedLabelApplies
+              ? 'removed'
+              : chosen
+                ? 'selected'
+                : 'neutral';
           return (
-            <button
+            <AnswerSlab
               key={optionIndex}
+              letter={OPTION_LABELS[optionIndex]}
+              text={option}
+              state={slabState}
+              icon={slabState === 'selected' ? '●' : slabState === 'removed' ? '✗' : optionState.icon || undefined}
+              label={slabState === 'selected' ? 'Your vote' : slabState === 'removed' ? 'Removed' : optionState.label || undefined}
+              ariaPressed={chosen}
               type="submit"
               name="option"
               value={optionIndex}
               disabled={disabled || !available}
               onClick={() => setVotedOption(optionIndex)}
-              className={`min-h-11 rounded-lg border px-3 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
-                optionState.state === 'correct'
-                  ? 'border-green-700 bg-green-100 font-semibold'
-                  : optionState.state === 'wrong'
-                    ? 'border-red-700 bg-red-100 font-semibold'
-                    : !available
-                      ? 'border-stone-400 bg-stone-100 text-stone-500'
-                    : optionState.state === 'locked'
-                      ? 'border-amber-700 bg-amber-100 font-semibold'
-                      : chosen
-                        ? 'border-blue-700 bg-blue-100'
-                        : 'border-stone-300 bg-white'
-              }`}
-            >
-              <span className="font-bold">{OPTION_LABELS[optionIndex]}.</span>{' '}
-              {option}
-              {optionState.icon ? (
-                <span aria-hidden="true" className="ml-2">{optionState.icon}</span>
-              ) : null}
-              {removedLabelApplies ? (
-                <span aria-hidden="true" className="ml-2">✗</span>
-              ) : null}
-              {optionState.label ? <span className="ml-1 font-semibold">{optionState.label}</span> : null}
-              {removedLabelApplies ? (
-                <span className="ml-1 font-semibold">Removed</span>
-              ) : null}
-              {chosen ? (
-                <span className="ml-2 font-semibold">Your vote</span>
-              ) : null}
-            </button>
+            />
           );
         })}
       </form>
@@ -138,7 +135,7 @@ export function AudiencePanel({
       ) : null}
       {resultMessage ? <p role="status">{resultMessage}</p> : null}
       {actionState.error ? (
-        <p role="alert" className="text-red-700">{actionState.error}</p>
+        <p role="alert" className="text-rose">{actionState.error}</p>
       ) : null}
     </section>
   );

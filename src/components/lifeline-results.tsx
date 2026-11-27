@@ -21,7 +21,7 @@ export function LifelineResults({ lifelines }: Props) {
   if (phoneMessage === null && audienceResult === null && !hasRemovedOptions) return null;
 
   return (
-    <div className="space-y-2 rounded-lg border border-stone-300 bg-stone-50 p-3 text-sm">
+    <div className="space-y-2 rounded-sm border border-rule bg-slab p-3 text-sm text-bone">
       {phoneMessage !== null ? <p>{phoneMessage}</p> : null}
       {audienceResult?.kind === 'bars' ? (
         <div
@@ -32,9 +32,9 @@ export function LifelineResults({ lifelines }: Props) {
           {audienceResult.rows.map((row) => (
             <div key={row.label} className="flex items-center gap-2">
               <span className="w-16 shrink-0">{row.text}</span>
-              <div className="h-2 flex-1 overflow-hidden rounded bg-stone-200">
+              <div className="h-2 flex-1 overflow-hidden rounded-sm bg-slab-raised">
                 <div
-                  className="h-full bg-blue-700"
+                  className="h-full bg-ember"
                   style={{ width: `${row.percent}%` }}
                 />
               </div>

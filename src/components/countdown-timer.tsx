@@ -31,6 +31,7 @@ export function CountdownTimer({
   const offsetRef = useRef(0);
   const loopRef = useRef<ReturnType<typeof createKnockLoop> | null>(null);
   const [seconds, setSeconds] = useState(0);
+  const [remainingFraction, setRemainingFraction] = useState(1);
   const [liveMessage, setLiveMessage] = useState('');
 
   useEffect(() => {
@@ -49,6 +50,7 @@ export function CountdownTimer({
       const remaining = remainingMs(endsAtMs, estimatedNow);
       const nextSeconds = secondsLeft(remaining);
       setSeconds(nextSeconds);
+      setRemainingFraction(Math.min(1, remaining / 30_000));
       if (isExpired(endsAtMs, estimatedNow)) setLiveMessage('Time is up');
       else if (nextSeconds === 10) setLiveMessage('10 seconds remaining');
       else if (nextSeconds === 5) setLiveMessage('5 seconds remaining');
@@ -90,12 +92,18 @@ export function CountdownTimer({
 
   return (
     <>
-      <p
+      <div
         role="timer"
-        className={seconds <= 5 ? 'font-bold text-red-700' : 'font-semibold'}
+        className={`flex min-w-0 items-center gap-3 ${seconds <= 5 ? 'font-bold text-rose' : 'font-semibold text-bone'}`}
       >
-        {seconds}
-      </p>
+        <div aria-hidden="true" className="h-2 min-w-0 flex-1 overflow-hidden rounded-sm bg-slab-raised">
+          <div
+            className={`h-full origin-left ${seconds <= 5 ? 'bg-rose' : 'bg-ember'}`}
+            style={{ transform: `scaleX(${remainingFraction})` }}
+          />
+        </div>
+        <span className="w-10 shrink-0 text-right tabular-nums">{seconds}</span>
+      </div>
       {liveMessage ? (
         <span className="sr-only" aria-live="polite">
           {liveMessage}

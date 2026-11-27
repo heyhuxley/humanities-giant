@@ -5,6 +5,7 @@ import {
   checkBoundaries,
   extractImports,
   findAnswerDataFiles,
+  findInvalidClientStageFiles,
   findIdentifierFiles,
   findForbiddenPlayerLifelineFields,
   findImportsFromDirectories,
@@ -12,6 +13,8 @@ import {
   findUnexpectedIdentifierFiles,
   findDynamicFromCalls,
   findParticipantIdentifierMatches,
+  findRawColorLiteralFiles,
+  findStageBoundaryViolations,
   findVotesTableReads,
   isActionFile,
   isClientFile,
@@ -972,5 +975,70 @@ describe('session import boundaries', () => {
         expect(importedPath, path).not.toMatch(/^src\/lib\/supabase(?:\/|$)/);
       }
     }
+  });
+
+  it('keeps stage components away from game data and server dependencies', () => {
+    const secretWords = [
+      ['correct', 'Index'].join(''),
+      ['correct', '_index'].join(''),
+      ['hint', 'IsCorrect'].join(''),
+      ['session', '_private'].join(''),
+      ['question', '_answers'].join(''),
+      ['participant', '_id'].join(''),
+    ];
+    const fakeFiles: SourceFile[] = [
+      {
+        path: 'src/components/stage/fake.tsx',
+        source: [
+          ...secretWords.map((word) => `const field = '${word}';`),
+          "import '@/lib/supabase/server';",
+          "import '../../lib/auth/require-host';",
+          "import '../../lib/sessions/run-session-event';",
+          "import '../../lib/supabase/admin';",
+          "import '../../app/play/actions';",
+          "import '../../game/apply-event';",
+        ].join('\n'),
+      },
+      {
+        path: 'src/components/stage/fake.test.tsx',
+        source: `const field = '${secretWords.join(' ')}';`,
+      },
+    ];
+
+    expect(findStageBoundaryViolations(fakeFiles)).toHaveLength(12);
+    expect(findStageBoundaryViolations(files)).toEqual([]);
+  });
+
+  it('rejects raw colors in app and component TSX, including fake sources', () => {
+    const fakeFiles: SourceFile[] = [
+      { path: 'src/components/fake.tsx', source: 'const color = "#fff";' },
+      { path: 'src/app/fake.tsx', source: 'const color = "rgb(1, 2, 3)";' },
+      { path: 'src/components/fake.test.tsx', source: 'const color = "hsl(1, 2%, 3%)";' },
+      { path: 'src/lib/fake.ts', source: 'const color = "#fff";' },
+    ];
+
+    expect(findRawColorLiteralFiles(fakeFiles)).toEqual([
+      'src/app/fake.tsx',
+      'src/components/fake.tsx',
+    ]);
+    expect(findRawColorLiteralFiles(files)).toEqual([]);
+  });
+
+  it('allows client stage files only when they declare an onClick handler', () => {
+    const fakeFiles: SourceFile[] = [
+      {
+        path: 'src/components/stage/no-handler.tsx',
+        source: "'use client'; export function NoHandler() {}",
+      },
+      {
+        path: 'src/components/stage/with-handler.tsx',
+        source: "'use client'; type Props = { onClick?: () => void };",
+      },
+    ];
+
+    expect(findInvalidClientStageFiles(fakeFiles)).toEqual([
+      'src/components/stage/no-handler.tsx',
+    ]);
+    expect(findInvalidClientStageFiles(files)).toEqual([]);
   });
 });
