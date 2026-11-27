@@ -75,7 +75,7 @@ Define once as Tailwind theme tokens. No raw hex values in components.
 
 | Moment | Behaviour |
 |---|---|
-| Question appears | Spotlight eases in, the giant numeral fades up, the question text reveals with SplitText, then the four slabs enter one by one (A to D, short stagger) |
+| Question appears | Spotlight eases in, the giant numeral fades up, the question block (all its text at once) fades in and rises 8px, starting when the numeral begins and finishing within 900ms. No text splitting. |
 | Slab selected | Letter block fills `ember`, soft pulse on the edge |
 | Lock in | A brief hold: the other slabs dim, the spotlight tightens |
 | Suspense | The host controls the pause. The UI holds still and a low tone sustains |
