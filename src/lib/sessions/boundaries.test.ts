@@ -110,6 +110,8 @@ const FINAL_RESULT_PATHS = [
   'src/lib/sessions/final-result-view.ts',
   'src/components/final-result.tsx',
 ];
+const JOIN_FORM_PATH = 'src/app/join/join-form.tsx';
+const JOIN_PAGE_PATH = 'src/app/play/[sessionId]/page.tsx';
 const FINAL_RESULT_FORBIDDEN_TEXT = [
   ['correct', '_index'].join(''),
   ['question', '_answers'].join(''),
@@ -1022,6 +1024,51 @@ describe('session import boundaries', () => {
       'src/components/fake.tsx',
     ]);
     expect(findRawColorLiteralFiles(files)).toEqual([]);
+  });
+
+  it('allows only the ink viewport theme color in the root layout', () => {
+    const fakeFiles: SourceFile[] = [
+      {
+        path: 'src/app/layout.tsx',
+        source: "export const viewport = { themeColor: '#12100E' };",
+      },
+      {
+        path: 'src/app/other-layout.tsx',
+        source: "export const viewport = { themeColor: '#12100E' };",
+      },
+      {
+        path: 'src/app/layout-extra.tsx',
+        source: "export const viewport = { themeColor: '#12100E' }; const extra = '#fff';",
+      },
+    ];
+
+    expect(findRawColorLiteralFiles(fakeFiles)).toEqual([
+      'src/app/layout-extra.tsx',
+      'src/app/other-layout.tsx',
+    ]);
+    expect(findRawColorLiteralFiles(files)).toEqual([]);
+  });
+
+  it('keeps the skip link, main targets, and join field names intact', () => {
+    const layout = files.find((file) => file.path === 'src/app/layout.tsx');
+    expect(layout).toBeDefined();
+    expect(layout?.source).toMatch(
+      /<body[^>]*>\s*<a\b[^>]*href="#main"[^>]*>\s*Skip to main content\s*<\/a>/,
+    );
+
+    for (const path of [JOIN_FORM_PATH, JOIN_PAGE_PATH]) {
+      const file = files.find((entry) => entry.path === path);
+      expect(file, path).toBeDefined();
+      const main = file?.source.match(/<main\b[^>]*>/)?.[0] ?? '';
+      expect(main, path).toContain('id="main"');
+      expect(main, path).toContain('tabIndex={-1}');
+    }
+
+    const joinForm = files.find((file) => file.path === JOIN_FORM_PATH);
+    expect(joinForm).toBeDefined();
+    const fieldNames = [...(joinForm?.source.matchAll(/\bname=["']([^"']+)["']/g) ?? [])]
+      .map((match) => match[1]);
+    expect(fieldNames).toEqual(['code', 'displayName']);
   });
 
   it('allows client stage files only when they declare an onClick handler', () => {

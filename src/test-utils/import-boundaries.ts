@@ -332,14 +332,25 @@ export function findStageBoundaryViolations(
 export function findRawColorLiteralFiles(
   files: { path: string; source: string }[],
 ): string[] {
-  const rawColorPattern = /#[0-9a-fA-F]{3,8}|(rgb|hsl)[ ]*[(]/i;
   return files
     .filter((file) => !isTestFile(file.path) && file.path.endsWith('.tsx'))
     .filter((file) => {
       const path = normalizedPath(file.path);
       return isUnder(path, 'src/components') || isUnder(path, 'src/app');
     })
-    .filter((file) => rawColorPattern.test(file.source))
+    .filter((file) => {
+      const path = normalizedPath(file.path);
+      const rawColors = [...file.source.matchAll(/#[0-9a-fA-F]{3,8}|(?:rgb|hsl)[ ]*[(]/gi)];
+      const viewportColors = [
+        ...file.source.matchAll(/\bthemeColor\s*:\s*(['"])#12100E\1/g),
+      ];
+      const onlyViewportThemeColor =
+        path === 'src/app/layout.tsx' &&
+        rawColors.length === 1 &&
+        rawColors[0]?.[0] === '#12100E' &&
+        viewportColors.length === 1;
+      return rawColors.length > 0 && !onlyViewportThemeColor;
+    })
     .map((file) => normalizedPath(file.path))
     .sort();
 }

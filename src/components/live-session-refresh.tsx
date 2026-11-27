@@ -78,7 +78,11 @@ export function LiveSessionRefresh({ sessionId }: Readonly<{ sessionId: string }
   }, [router, sessionId]);
 
   return (
-    <p role="status" aria-live="polite" className="text-sm text-gray-600">
+    <p
+      role="status"
+      aria-live="polite"
+      className="inline-flex min-h-11 items-center gap-2 text-sm text-bone-muted before:inline-block before:size-2 before:shrink-0 before:rounded-full before:border before:border-bone-muted before:content-['']"
+    >
       {CONNECTION_LABELS[connection]}
     </p>
   );

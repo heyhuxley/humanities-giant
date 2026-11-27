@@ -3,6 +3,8 @@ import { readCurrentQuestion, readPublicState } from '../../../lib/sessions/read
 import { buildLadderRows, formatNaira } from '../../../lib/sessions/ladder-view';
 import { createClient } from '../../../lib/supabase/server';
 import { LiveSessionRefresh } from '../../../components/live-session-refresh';
+import { Card } from '../../../components/stage/card';
+import { Spotlight } from '../../../components/stage/spotlight';
 import { CountdownTimer } from '../../../components/countdown-timer';
 import { FinalResult } from '../../../components/final-result';
 import { MoneyLadder } from '../../../components/money-ladder';
@@ -183,15 +185,17 @@ export default async function PlayPage({
   const serverNowMs = Date.now();
 
   return (
-    <main className={isAnsweringView
-      ? 'film-grain mx-auto min-h-screen w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8'
-      : 'mx-auto w-full max-w-xl space-y-6 p-6'}>
-      <header className={isAnsweringView
-        ? 'flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-4'
-        : 'space-y-2'}>
+    <main
+      id="main"
+      tabIndex={-1}
+      className={isAnsweringView
+        ? 'film-grain mx-auto min-h-screen w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8'
+        : 'film-grain mx-auto min-h-screen w-full max-w-3xl space-y-8 px-4 py-8 sm:px-6 sm:py-12'}
+    >
+      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-4">
         <h1 className={isAnsweringView
           ? 'font-display text-3xl font-semibold text-bone text-pretty'
-          : 'text-2xl font-bold'}>
+          : 'font-display text-3xl font-semibold text-bone text-pretty sm:text-4xl'}>
           Who Wants to Be a Humanities Giant
         </h1>
         <LiveSessionRefresh sessionId={sessionId} />
@@ -199,32 +203,95 @@ export default async function PlayPage({
 
       <section className={isAnsweringView
         ? 'flex flex-wrap items-center justify-between gap-2 text-bone-muted'
-        : 'space-y-2'}>
-        <p>
-          Playing as <span className="font-semibold">{player.display_name}</span>
-        </p>
+        : isWaiting
+          ? 'space-y-4'
+          : 'flex flex-wrap items-center justify-between gap-3 text-bone-muted'}>
+        {isWaiting ? (
+          <div className="relative w-full overflow-hidden border-y border-rule px-4 py-8 text-center sm:py-10">
+            <Spotlight>
+              <div className="space-y-3">
+                <h2 className="font-display text-4xl font-semibold text-bone sm:text-5xl">
+                  You&apos;re in
+                </h2>
+                <p className="text-lg text-bone-muted">
+                  Playing as{' '}
+                  <span className="font-semibold text-bone">{player.display_name}</span>
+                </p>
+              </div>
+            </Spotlight>
+          </div>
+        ) : (
+          <p>
+            Playing as <span className="font-semibold">{player.display_name}</span>
+          </p>
+        )}
         {player.role === 'contestant' ? (
-          <p className={isAnsweringView
-            ? 'rounded-sm border border-brass bg-slab px-3 py-2 font-semibold text-brass'
-            : 'rounded bg-amber-100 p-3 font-semibold'}>
-            You are in the hot seat
+          <p className="flex min-h-11 items-center gap-2 border border-brass/60 bg-slab px-3 py-2 font-semibold text-brass">
+            <svg
+              aria-hidden="true"
+              className="size-5 shrink-0"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <circle cx="10" cy="6.5" r="3" />
+              <path d="M4.5 17v-1.25a5.5 5.5 0 0 1 11 0V17z" />
+            </svg>
+            <span>You are in the hot seat</span>
           </p>
         ) : null}
       </section>
 
       {isWaiting ? (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Waiting for the host to start</h2>
-          <h3 className="font-medium">Players</h3>
-          <ul className="space-y-2">
-            {participants.map((participant) => (
-              <li key={participant.id}>
-                <span>{participant.display_name}</span>
-                {participant.role === 'contestant' ? <span> (Contestant)</span> : null}
-                {participant.id === player.id ? <span> (you)</span> : null}
-              </li>
-            ))}
-          </ul>
+        <section className="space-y-5">
+          <p className="font-display text-xl text-bone">
+            Waiting for the host to start
+          </p>
+          <Card heading="Players" headingLevel={3}>
+            <ul className="flex flex-col gap-2">
+              {participants.map((participant) => (
+                <li
+                  key={participant.id}
+                  className="flex min-h-12 min-w-0 flex-wrap items-center gap-2 border border-rule bg-ink px-3 py-2"
+                >
+                  <span className="min-w-0 break-words text-base text-bone">
+                    {participant.display_name}
+                  </span>
+                  {participant.role === 'contestant' ? (
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-brass">
+                      <svg
+                        aria-hidden="true"
+                        className="size-4 shrink-0"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.75"
+                      >
+                        <path d="m10 3 1.8 4 4.2.5-3.1 2.9.8 4.2-3.7-2.1-3.7 2.1.8-4.2L4 7.5 8.2 7z" />
+                      </svg>
+                      <span>Contestant</span>
+                    </span>
+                  ) : null}
+                  {participant.id === player.id ? (
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-bone-muted">
+                      <svg
+                        aria-hidden="true"
+                        className="size-4 shrink-0"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.75"
+                      >
+                        <path d="m4 10 4 4 8-8" />
+                      </svg>
+                      <span>you</span>
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </Card>
         </section>
       ) : (
         <section className={isAnsweringView ? 'space-y-6' : 'space-y-3'}>
@@ -281,7 +348,7 @@ export default async function PlayPage({
                   knockAction={knockAction}
                 />
               ) : null}
-              {playerPanel}
+              {publicState.status === 'finished' ? null : playerPanel}
               {!showQuestionScreen && currentQuestion ? (
                 <div className="space-y-2">
                   <p>{currentQuestion.text}</p>

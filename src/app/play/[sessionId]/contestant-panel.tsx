@@ -173,7 +173,7 @@ export function ContestantPanel({
                 disabled={lifelineDisabled}
                 aria-disabled={lifelineDisabled}
                 onClick={() => setSelectedLifeline(choice)}
-                className="min-h-11 rounded-sm border border-rule bg-slab px-2 py-2 font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60 transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
+                className="press min-h-11 rounded-sm border border-rule bg-slab px-2 py-2 font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {choice.label}
                 {used ? (
@@ -203,7 +203,7 @@ export function ContestantPanel({
                 !effectiveOpen ||
                 lockedAnswer !== null
               }
-              className="min-h-11 flex-1 rounded-sm border border-ember bg-ember px-4 py-3 font-semibold text-ink hover:bg-ember/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60 transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
+              className="press min-h-11 flex-1 rounded-sm border border-ember bg-ember px-4 py-3 font-semibold text-ink hover:bg-ember/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60"
             >
               Confirm
             </button>
@@ -211,7 +211,7 @@ export function ContestantPanel({
               type="button"
               disabled={lifelinePending}
               onClick={() => setSelectedLifeline(null)}
-              className="min-h-11 flex-1 rounded-sm border border-rule bg-slab px-4 py-3 font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60 transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
+              className="press min-h-11 flex-1 rounded-sm border border-rule bg-slab px-4 py-3 font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60"
             >
               Cancel
             </button>
@@ -270,7 +270,7 @@ export function ContestantPanel({
                   type="button"
                   disabled={walkAwayPending}
                   onClick={() => setWalkAwayConfirming(true)}
-                  className="min-h-11 w-full rounded-sm border border-rule bg-slab px-4 py-3 text-left font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60 transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
+                  className="press min-h-11 w-full rounded-sm border border-rule bg-slab px-4 py-3 text-left font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Walk away with {formatNaira(walkAwayAmount)}
                 </button>
@@ -284,7 +284,7 @@ export function ContestantPanel({
                     <button
                       type="submit"
                       disabled={walkAwayPending}
-                      className="min-h-11 flex-1 rounded-sm border border-ember bg-ember px-4 py-3 font-semibold text-ink hover:bg-ember/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60 transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
+                      className="press min-h-11 flex-1 rounded-sm border border-ember bg-ember px-4 py-3 font-semibold text-ink hover:bg-ember/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Confirm
                     </button>
@@ -292,7 +292,7 @@ export function ContestantPanel({
                       type="button"
                       disabled={walkAwayPending}
                       onClick={() => setWalkAwayConfirming(false)}
-                      className="min-h-11 flex-1 rounded-sm border border-rule bg-slab px-4 py-3 font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60 transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
+                      className="press min-h-11 flex-1 rounded-sm border border-rule bg-slab px-4 py-3 font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Cancel
                     </button>
@@ -312,7 +312,7 @@ export function ContestantPanel({
           type="button"
           disabled={disabled}
           onClick={() => setConfirming(true)}
-          className="min-h-11 w-full rounded-sm border border-ember bg-ember px-4 py-3 font-semibold text-ink hover:bg-ember/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
+          className="press min-h-11 w-full rounded-sm border border-ember bg-ember px-4 py-3 font-semibold text-ink hover:bg-ember/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
         >
           Final answer
         </button>
@@ -325,7 +325,7 @@ export function ContestantPanel({
             <button
               type="submit"
               disabled={disabled}
-              className="min-h-11 flex-1 rounded-sm border border-ember bg-ember px-4 py-3 font-semibold text-ink hover:bg-ember/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
+              className="press min-h-11 flex-1 rounded-sm border border-ember bg-ember px-4 py-3 font-semibold text-ink hover:bg-ember/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
             >
               Confirm
             </button>
@@ -333,7 +333,7 @@ export function ContestantPanel({
               type="button"
               disabled={disabled}
               onClick={() => setConfirming(false)}
-              className="min-h-11 flex-1 rounded-sm border border-rule bg-slab px-4 py-3 font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink transition-[background-color,border-color,color,transform] duration-[120ms] active:scale-[0.98] active:duration-[80ms]"
+              className="press min-h-11 flex-1 rounded-sm border border-rule bg-slab px-4 py-3 font-semibold text-bone hover:bg-slab-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
             >
               Change
             </button>
