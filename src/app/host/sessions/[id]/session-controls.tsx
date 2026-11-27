@@ -1,141 +1,144 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import {useActionState, useState} from 'react';
 import {
-  endSessionAction,
-  nextAction,
-  revealAction,
-  setContestantAction,
-  startSessionAction,
-  type HostEventActionState,
+	endSessionAction,
+	nextAction,
+	revealAction,
+	setContestantAction,
+	startSessionAction,
+	type HostEventActionState,
 } from './actions';
+import {Button} from '../../../../components/stage/button';
+import {InlineAlert} from '../../../../components/stage/inline-alert';
 
-const INITIAL_STATE: HostEventActionState = { error: null };
+const INITIAL_STATE: HostEventActionState = {error: null};
 
 export function SetContestantForm({
-  sessionId,
-  participantId,
-}: Readonly<{
-    sessionId: string;
-    participantId: string;
+	                                  sessionId,
+	                                  participantId,
+                                  }: Readonly<{
+	sessionId: string;
+	participantId: string;
 }>) {
-  const [state, formAction, pending] = useActionState(setContestantAction, INITIAL_STATE);
-
-  return (
-    <form action={formAction} className="space-y-1">
-      <input type="hidden" name="sessionId" value={sessionId} />
-      <input type="hidden" name="participantId" value={participantId} />
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded border px-3 py-1 disabled:opacity-50"
-      >
-        {pending ? 'Updating…' : 'Make contestant'}
-      </button>
-      {state.error ? <p role="alert" className="text-sm text-red-700">{state.error}</p> : null}
-    </form>
-  );
+	const [state, formAction, pending] = useActionState(setContestantAction, INITIAL_STATE);
+	
+	return (
+		<form action={formAction} className="space-y-1">
+			<input type="hidden" name="sessionId" value={sessionId}/>
+			<input type="hidden" name="participantId" value={participantId}/>
+			<Button
+				type="submit"
+				disabled={pending}
+				variant="secondary"
+				className="px-3"
+			>
+				{pending ? 'Updating…' : 'Make contestant'}
+			</Button>
+			{state.error ? <InlineAlert className="text-sm">{state.error}</InlineAlert> : null}
+		</form>
+	);
 }
 
 export function StartSessionForm({
-  sessionId,
-  hasContestant,
-}: {
-  sessionId: string;
-  hasContestant: boolean;
+	                                 sessionId,
+	                                 hasContestant,
+                                 }: {
+	sessionId: string;
+	hasContestant: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(startSessionAction, INITIAL_STATE);
-
-  return (
-    <form action={formAction} className="space-y-1">
-      <input type="hidden" name="sessionId" value={sessionId} />
-      <button
-        type="submit"
-        disabled={!hasContestant || pending}
-        className="rounded bg-gray-900 px-4 py-2 text-white disabled:opacity-50"
-      >
-        {pending ? 'Starting…' : 'Start'}
-      </button>
-      {state.error ? <p role="alert" className="text-sm text-red-700">{state.error}</p> : null}
-    </form>
-  );
+	const [state, formAction, pending] = useActionState(startSessionAction, INITIAL_STATE);
+	
+	return (
+		<form action={formAction} className="space-y-1">
+			<input type="hidden" name="sessionId" value={sessionId}/>
+			<Button
+				type="submit"
+				disabled={!hasContestant || pending}
+				size="large"
+			>
+				{pending ? 'Starting…' : 'Start'}
+			</Button>
+			{state.error ? <InlineAlert className="text-sm">{state.error}</InlineAlert> : null}
+		</form>
+	);
 }
 
-export function EndSessionControl({ sessionId }: Readonly<{ sessionId: string }>) {
-  const [state, formAction, pending] = useActionState(endSessionAction, INITIAL_STATE);
-  const [isConfirming, setIsConfirming] = useState(false);
-
-  if (!isConfirming) {
-    return (
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() => setIsConfirming(true)}
-        className="rounded border border-red-700 px-4 py-2 text-red-700 disabled:opacity-50"
-      >
-        End session
-      </button>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      <p role="alert">End the session for everyone? This can&apos;t be undone.</p>
-      <form action={formAction} className="flex flex-wrap items-center gap-2">
-        <input type="hidden" name="sessionId" value={sessionId} />
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded bg-red-700 px-4 py-2 text-white disabled:opacity-50"
-        >
-          {pending ? 'Ending…' : 'Yes, end it'}
-        </button>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => setIsConfirming(false)}
-          className="rounded border px-4 py-2 disabled:opacity-50"
-        >
-          Cancel
-        </button>
-        {state.error ? <p role="alert" className="text-sm text-red-700">{state.error}</p> : null}
-      </form>
-    </div>
-  );
+export function EndSessionControl({sessionId}: Readonly<{ sessionId: string }>) {
+	const [state, formAction, pending] = useActionState(endSessionAction, INITIAL_STATE);
+	const [isConfirming, setIsConfirming] = useState(false);
+	
+	if (!isConfirming) {
+		return (
+			<Button
+				type="button"
+				disabled={pending}
+				onClick={() => setIsConfirming(true)}
+				variant="danger"
+			>
+				End session
+			</Button>
+		);
+	}
+	
+	return (
+		<div className="space-y-2">
+			<InlineAlert>End the session for everyone? This can&apos;t be undone.</InlineAlert>
+			<form action={formAction} className="flex flex-wrap items-center gap-2">
+				<input type="hidden" name="sessionId" value={sessionId}/>
+				<Button
+					type="submit"
+					disabled={pending}
+					variant="danger"
+				>
+					{pending ? 'Ending…' : 'Yes, end it'}
+				</Button>
+				<Button
+					type="button"
+					disabled={pending}
+					onClick={() => setIsConfirming(false)}
+					variant="secondary"
+				>
+					Cancel
+				</Button>
+				{state.error ? <InlineAlert className="text-sm">{state.error}</InlineAlert> : null}
+			</form>
+		</div>
+	);
 }
 
-export function RevealControl({ sessionId }: Readonly<{ sessionId: string }>) {
-  const [state, formAction, pending] = useActionState(revealAction, INITIAL_STATE);
-
-  return (
-    <form action={formAction} className="space-y-1">
-      <input type="hidden" name="sessionId" value={sessionId} />
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded bg-gray-900 px-4 py-2 text-white disabled:opacity-50"
-      >
-        {pending ? 'Revealing…' : 'Reveal answer'}
-      </button>
-      {state.error ? <p role="alert" className="text-sm text-red-700">{state.error}</p> : null}
-    </form>
-  );
+export function RevealControl({sessionId}: Readonly<{ sessionId: string }>) {
+	const [state, formAction, pending] = useActionState(revealAction, INITIAL_STATE);
+	
+	return (
+		<form action={formAction} className="space-y-1">
+			<input type="hidden" name="sessionId" value={sessionId}/>
+			<Button
+				type="submit"
+				disabled={pending}
+				size="large"
+			>
+				{pending ? 'Revealing…' : 'Reveal answer'}
+			</Button>
+			{state.error ? <InlineAlert className="text-sm">{state.error}</InlineAlert> : null}
+		</form>
+	);
 }
 
-export function NextControl({ sessionId }: Readonly<{ sessionId: string }>) {
-  const [state, formAction, pending] = useActionState(nextAction, INITIAL_STATE);
-
-  return (
-    <form action={formAction} className="space-y-1">
-      <input type="hidden" name="sessionId" value={sessionId} />
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded bg-gray-900 px-4 py-2 text-white disabled:opacity-50"
-      >
-        {pending ? 'Moving on…' : 'Next question'}
-      </button>
-      {state.error ? <p role="alert" className="text-sm text-red-700">{state.error}</p> : null}
-    </form>
-  );
+export function NextControl({sessionId}: Readonly<{ sessionId: string }>) {
+	const [state, formAction, pending] = useActionState(nextAction, INITIAL_STATE);
+	
+	return (
+		<form action={formAction} className="space-y-1">
+			<input type="hidden" name="sessionId" value={sessionId}/>
+			<Button
+				type="submit"
+				disabled={pending}
+				size="large"
+			>
+				{pending ? 'Moving on…' : 'Next question'}
+			</Button>
+			{state.error ? <InlineAlert className="text-sm">{state.error}</InlineAlert> : null}
+		</form>
+	);
 }

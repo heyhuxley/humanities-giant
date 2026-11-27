@@ -292,6 +292,7 @@ export function findStageBoundaryViolations(
     ['session', '_private'].join(''),
     ['question', '_answers'].join(''),
     ['participant', '_id'].join(''),
+    ['vo', 'tes'].join(''),
   ];
   const forbiddenDirectories = ['src/lib/supabase', 'src/lib/auth', 'src/game'];
   const forbiddenModules = [

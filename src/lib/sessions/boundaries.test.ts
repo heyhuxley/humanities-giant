@@ -89,6 +89,74 @@ const CORRECT_INDEX_ALLOWLIST = [
   'src/lib/sessions/reveal-view.ts',
   'src/lib/sessions/run-session-event.ts',
 ].sort();
+const HOST_FORM_CONTRACT = [
+  {
+    path: 'src/app/host/sign-in/page.tsx',
+    purpose: 'Host sign in',
+    names: ['email', 'password'],
+    hiddenNames: [],
+  },
+  {
+    path: 'src/app/host/page.tsx',
+    purpose: 'Sign out',
+    names: [],
+    hiddenNames: [],
+  },
+  {
+    path: 'src/app/host/sessions/[id]/session-controls.tsx',
+    purpose: 'Set contestant',
+    names: [],
+    hiddenNames: ['sessionId', 'participantId'],
+  },
+  {
+    path: 'src/app/host/sessions/[id]/session-controls.tsx',
+    purpose: 'Start session',
+    names: [],
+    hiddenNames: ['sessionId'],
+  },
+  {
+    path: 'src/app/host/sessions/[id]/session-controls.tsx',
+    purpose: 'End session, confirmed',
+    names: [],
+    hiddenNames: ['sessionId'],
+  },
+  {
+    path: 'src/app/host/sessions/[id]/session-controls.tsx',
+    purpose: 'Reveal answer',
+    names: [],
+    hiddenNames: ['sessionId'],
+  },
+  {
+    path: 'src/app/host/sessions/[id]/session-controls.tsx',
+    purpose: 'Next question',
+    names: [],
+    hiddenNames: ['sessionId'],
+  },
+  {
+    path: 'src/app/host/sessions/session-picker.tsx',
+    purpose: 'Create session',
+    names: [],
+    hiddenNames: ['questionIds'],
+  },
+  {
+    path: 'src/app/host/questions/page.tsx',
+    purpose: 'Filter question bank',
+    names: ['subject', 'difficulty'],
+    hiddenNames: [],
+  },
+  {
+    path: 'src/app/host/questions/question-form.tsx',
+    purpose: 'Create or edit question',
+    names: ['subject', 'difficulty', 'text', 'option0', 'option1', 'option2', 'option3', 'correctIndex'],
+    hiddenNames: ['id'],
+  },
+  {
+    path: 'src/app/host/questions/delete-question-form.tsx',
+    purpose: 'Delete question',
+    names: [],
+    hiddenNames: ['id'],
+  },
+] as const;
 const LIFELINE_FORBIDDEN_TEXT = [
   ['question', '_answers'].join(''),
   ['correct', '_index'].join(''),
@@ -1009,6 +1077,71 @@ describe('session import boundaries', () => {
 
     expect(findStageBoundaryViolations(fakeFiles)).toHaveLength(12);
     expect(findStageBoundaryViolations(files)).toEqual([]);
+  });
+
+  it('rejects votes data in stage components', () => {
+    expect(findStageBoundaryViolations([
+      { path: 'src/components/stage/fake.tsx', source: 'const value = data.votes;' },
+      { path: 'src/components/stage/fake.test.tsx', source: 'const value = data.votes;' },
+    ])).toEqual(['src/components/stage/fake.tsx:text:votes']);
+  });
+
+  it('preserves the host form contract in each source file', () => {
+    const hostPaths = [...new Set(HOST_FORM_CONTRACT.map((contract) => contract.path))];
+
+    for (const path of hostPaths) {
+      const file = files.find((entry) => entry.path === path);
+      expect(file, path).toBeDefined();
+      if (!file) continue;
+
+      const contracts = HOST_FORM_CONTRACT.filter((contract) => contract.path === path);
+      const expectedNames = [...new Set(contracts.flatMap((contract) => contract.names))];
+      const expectedHiddenNames = [...new Set(contracts.flatMap((contract) => contract.hiddenNames))];
+      const expectedStaticNames = [
+        ...expectedNames.filter((name) => !/^option[0-3]$/.test(name)),
+        ...expectedHiddenNames,
+      ];
+      const actualNames = [...new Set(
+        [...file.source.matchAll(/\bname=["']([^"']+)["']/g)].map((match) => match[1]),
+      )];
+      const actualHiddenNames = [...new Set(
+        [...file.source.matchAll(/<input\b[^>]*type=["']hidden["'][^>]*name=["']([^"']+)["']/g)]
+          .map((match) => match[1]),
+      )];
+
+      expect(actualNames.sort(), path).toEqual(expectedStaticNames.sort());
+      expect(actualHiddenNames.sort(), path).toEqual([...expectedHiddenNames].sort());
+      for (const contract of contracts) {
+        for (const name of contract.names) {
+          if (/^option[0-3]$/.test(name)) {
+            expect(file.source, `${contract.purpose}: generated ${name}`).toContain(`'${name}'`);
+            expect(file.source, `${contract.purpose}: generated field name`).toContain('name={field}');
+          } else {
+            expect(file.source, `${contract.purpose}: ${name}`).toMatch(
+              new RegExp(`\\bname=["']${name}["']`),
+            );
+          }
+        }
+        for (const name of contract.hiddenNames) {
+          expect(file.source, `${contract.purpose}: hidden ${name}`).toMatch(
+            new RegExp(`<input\\b[^>]*type=["']hidden["'][^>]*name=["']${name}["']`),
+          );
+        }
+      }
+    }
+  });
+
+  it('keeps host pages away from the admin client and session event dependencies', () => {
+    const hostSourceFiles = files.filter((file) =>
+      file.path.startsWith('src/app/host/') &&
+      !isActionFile(file.path) &&
+      !/\.test\.tsx?$/i.test(file.path),
+    );
+    expect(findImportsFromDirectories(
+      hostSourceFiles,
+      ['src/app/host'],
+      ['src/lib/supabase/admin', 'src/lib/sessions/session-event-deps'],
+    )).toEqual([]);
   });
 
   it('rejects raw colors in app and component TSX, including fake sources', () => {
