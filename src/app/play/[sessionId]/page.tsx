@@ -147,8 +147,11 @@ export default async function PlayPage({
 			publicState.status === 'finished') &&
 		currentQuestion !== null;
 	const isAnsweringView =
-		(publicState.status === 'question_active' || publicState.status === 'locked') &&
-		currentQuestion !== null;
+		publicState.status === 'finished' ||
+		((publicState.status === 'question_active' ||
+			publicState.status === 'locked' ||
+			publicState.status === 'revealed') &&
+			currentQuestion !== null);
 	const playerPanel = showQuestionScreen && currentQuestion ? (
 		player.id === publicState.contestantId ? (
 			<ContestantPanel
@@ -229,6 +232,24 @@ export default async function PlayPage({
 				publicState.lifelines.audience.notEnoughVotes,
 		},
 	};
+	const finalResult = publicState.status === 'finished' ? (
+		<FinalResult
+			winnings={publicState.winnings}
+			finishReason={publicState.finishReason}
+			position={publicState.position}
+			lastResult={publicState.lastResult}
+			correctIndex={publicState.correctIndex}
+			contestantName={participants.find((participant) =>
+				participant.id === publicState.contestantId,
+			)?.display_name ?? null}
+			lifelinesUsed={{
+				fiftyFifty: publicState.lifelines.fiftyFifty.used,
+				phone: publicState.lifelines.phone.used,
+				audience: publicState.lifelines.audience.used,
+			}}
+			question={currentQuestion}
+		/>
+	) : null;
 	
 	return (
 		<StageMotion snapshot={motionSnapshot}>
@@ -371,7 +392,7 @@ export default async function PlayPage({
 											</p>
 										) : null}
 									</header>
-									{playerPanel}
+									{publicState.status === 'finished' ? finalResult : playerPanel}
 								</div>
 								{publicState.position !== null && publicState.position >= 1 ? (
 									<MoneyLadder
@@ -420,24 +441,7 @@ export default async function PlayPage({
 						currentQuestion === null ? (
 							<p>Question unavailable</p>
 						) : null}
-						{publicState.status === 'finished' ? (
-							<FinalResult
-								winnings={publicState.winnings}
-								finishReason={publicState.finishReason}
-								position={publicState.position}
-								lastResult={publicState.lastResult}
-								correctIndex={publicState.correctIndex}
-								contestantName={participants.find((participant) =>
-									participant.id === publicState.contestantId,
-								)?.display_name ?? null}
-								lifelinesUsed={{
-									fiftyFifty: publicState.lifelines.fiftyFifty.used,
-									phone: publicState.lifelines.phone.used,
-									audience: publicState.lifelines.audience.used,
-								}}
-								question={currentQuestion}
-							/>
-						) : null}
+						{!isAnsweringView ? finalResult : null}
 					</section>
 				)}
 			</main>
