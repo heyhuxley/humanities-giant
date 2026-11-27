@@ -81,7 +81,7 @@ Define once as Tailwind theme tokens. No raw hex values in components.
 | Suspense | The host controls the pause. The UI holds still and a low tone sustains |
 | Correct | The slab flashes, turns `jade`, the ladder steps up, money counts up in brass |
 | Wrong | The picked slab turns `rose`, the correct one lights `jade` |
-| 50:50 | Two slabs slide down and fade to the "Removed" state |
+| 50:50 | The two removed slabs slide down 12px into their muted 'Removed' look over 350ms |
 | Countdown | The bar drains; the last 5 seconds pulse `rose` with a tick |
 | Final result | Winnings count up; the headline reveals line by line |
 
