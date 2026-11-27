@@ -30,7 +30,7 @@ export default async function HostSessionsPage() {
 	
 	return (
 		<main id="main" tabIndex={-1}
-		      className="mx-auto w-full max-w-6xl space-y-8 px-4 py-8 outline-none sm:px-6 sm:py-12">
+		      className="mx-auto w-full max-w-6xl space-y-8 px-4 py-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink sm:px-6 sm:py-12">
 			<PageHeader title="Your sessions"/>
 			<div className="flex flex-wrap items-end justify-between gap-4">
 				<p className="max-w-prose text-bone-muted">Review and manage the sessions you have hosted.</p>
@@ -70,7 +70,10 @@ export default async function HostSessionsPage() {
 								</td>
 								<td className="whitespace-nowrap px-4 py-4 text-sm">
 									<time
-										dateTime={session.createdAt}>{new Date(session.createdAt).toLocaleString()}</time>
+										dateTime={session.createdAt}>										{new Intl.DateTimeFormat('en', {
+											dateStyle: 'medium',
+											timeStyle: 'short',
+										}).format(new Date(session.createdAt))}</time>
 								</td>
 								<td className="px-4 py-4">
 									<Link href={`/host/sessions/${session.id}`}

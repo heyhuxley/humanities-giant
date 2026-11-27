@@ -17,7 +17,7 @@ export default async function NewSessionPage() {
 	
 	return (
 		<main id="main" tabIndex={-1}
-		      className="mx-auto w-full max-w-6xl space-y-8 px-4 py-8 outline-none sm:px-6 sm:py-12">
+		      className="mx-auto w-full max-w-6xl space-y-8 px-4 py-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember focus-visible:ring-offset-2 focus-visible:ring-offset-ink sm:px-6 sm:py-12">
 			<PageHeader title="Create a session"/>
 			<p className="max-w-prose text-bone-muted">Choose 15 questions and arrange them in the order they will
 				appear.</p>

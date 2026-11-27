@@ -53,31 +53,37 @@ function QuestionFields({state, formAction, pending, questionId}: QuestionFields
 			{state.errors.form ? <InlineAlert>{state.errors.form}</InlineAlert> : null}
 			<div className="space-y-2">
 				<label htmlFor="subject" className="block text-sm font-semibold">Subject</label>
-				<select id="subject" name="subject" required value={values.subject}
+				<select id="subject" name="subject" autoComplete="off" required value={values.subject}
+				        aria-invalid={Boolean(state.errors.subject)}
+				        aria-describedby={state.errors.subject ? 'subject-error' : undefined}
 				        onChange={(event) => changeValue('subject', event.target.value)}
 				        className="min-h-12 w-full rounded-sm border border-rule bg-ink px-4 py-3 text-base text-bone outline-none focus-visible:border-ember focus-visible:ring-2 focus-visible:ring-ember">
 					<option value="">Choose a subject</option>
 					{QUESTION_SUBJECTS.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
 				</select>
-				{state.errors.subject ? <p className="text-sm text-rose">{state.errors.subject}</p> : null}
+				{state.errors.subject ? <p id="subject-error" role="alert" className="text-sm text-rose">{state.errors.subject}</p> : null}
 			</div>
 			<div className="space-y-2">
 				<label htmlFor="difficulty" className="block text-sm font-semibold">Difficulty</label>
-				<select id="difficulty" name="difficulty" required value={values.difficulty}
+				<select id="difficulty" name="difficulty" autoComplete="off" required value={values.difficulty}
+				        aria-invalid={Boolean(state.errors.difficulty)}
+				        aria-describedby={state.errors.difficulty ? 'difficulty-error' : undefined}
 				        onChange={(event) => changeValue('difficulty', event.target.value)}
 				        className="min-h-12 w-full rounded-sm border border-rule bg-ink px-4 py-3 text-base text-bone outline-none focus-visible:border-ember focus-visible:ring-2 focus-visible:ring-ember">
 					<option value="">Choose a difficulty</option>
 					{QUESTION_DIFFICULTIES.map((difficulty) => <option key={difficulty}
 					                                                   value={difficulty}>{difficulty}</option>)}
 				</select>
-				{state.errors.difficulty ? <p className="text-sm text-rose">{state.errors.difficulty}</p> : null}
+				{state.errors.difficulty ? <p id="difficulty-error" role="alert" className="text-sm text-rose">{state.errors.difficulty}</p> : null}
 			</div>
 			<div className="space-y-2">
 				<label htmlFor="text" className="block text-sm font-semibold">Question</label>
-				<textarea id="text" name="text" required maxLength={200} value={values.text}
+				<textarea id="text" name="text" autoComplete="off" required maxLength={200} value={values.text}
+				          aria-invalid={Boolean(state.errors.text)}
+				          aria-describedby={state.errors.text ? 'text-error' : undefined}
 				          onChange={(event) => changeValue('text', event.target.value)}
 				          className="min-h-32 w-full rounded-sm border border-rule bg-ink px-4 py-3 text-base text-bone outline-none focus-visible:border-ember focus-visible:ring-2 focus-visible:ring-ember"/>
-				{state.errors.text ? <p className="text-sm text-rose">{state.errors.text}</p> : null}
+				{state.errors.text ? <p id="text-error" role="alert" className="text-sm text-rose">{state.errors.text}</p> : null}
 			</div>
 			<fieldset className="space-y-4 border-t border-rule pt-5">
 				<legend className="font-display text-lg font-semibold">Options and correct answer</legend>
@@ -91,6 +97,7 @@ function QuestionFields({state, formAction, pending, questionId}: QuestionFields
 								<Field
 									id={`option-${index}`}
 									name={field}
+									autoComplete="off"
 									required
 									maxLength={80}
 									value={values[field]}
@@ -102,6 +109,7 @@ function QuestionFields({state, formAction, pending, questionId}: QuestionFields
 							<label htmlFor={`correct-${index}`}
 							       className="inline-flex min-h-11 items-center gap-2 rounded-sm border border-rule px-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-ember">
 								<input id={`correct-${index}`} name="correctIndex" type="radio" value={index} required
+								       aria-describedby={state.errors.correctIndex ? 'correct-index-error' : undefined}
 								       checked={values.correctIndex === String(index)}
 								       onChange={(event) => changeValue('correctIndex', event.target.value)}
 								       className="size-5 accent-ember"/>
@@ -110,7 +118,7 @@ function QuestionFields({state, formAction, pending, questionId}: QuestionFields
 						</div>
 					);
 				})}
-				{state.errors.correctIndex ? <p className="text-sm text-rose">{state.errors.correctIndex}</p> : null}
+				{state.errors.correctIndex ? <p id="correct-index-error" role="alert" className="text-sm text-rose">{state.errors.correctIndex}</p> : null}
 			</fieldset>
 			<Button type="submit" disabled={pending} size="large">
 				{pending ? 'Saving…' : questionId ? 'Save question' : 'Create question'}
