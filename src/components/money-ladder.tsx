@@ -14,7 +14,7 @@ export function MoneyLadder({
   return (
     <nav aria-label="Money ladder" className="min-w-0 rounded-sm border border-rule bg-slab p-3">
       <h2 className="mb-3 font-display text-xl font-semibold text-bone">Money ladder</h2>
-      <ol className="grid grid-cols-2 gap-2 xl:grid-cols-1">
+      <ol className="grid grid-cols-1 gap-2">
         {rows.map((row) => (
           <li
             key={row.position}
