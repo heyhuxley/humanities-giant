@@ -1105,6 +1105,14 @@ describe('session import boundaries', () => {
       );
       expect(found, file.path).toEqual(fakeFiles.includes(file) ? FINAL_RESULT_FORBIDDEN_TEXT : []);
     }
+
+    expect(findCountUpOverlayChildren([
+      {
+        path: 'src/components/final-result.tsx',
+        source: ['<span data-countup-', 'overlay>', 'visible child', '</span>'].join(''),
+      },
+    ])).toEqual(['src/components/final-result.tsx:countup-overlay-has-children']);
+    expect(findCountUpOverlayChildren(realFiles)).toEqual([]);
   });
 
   it('keeps walkAwayAction only in the player action file', () => {

@@ -1,4 +1,10 @@
-import { MOTION_EASINGS, MOTION_TIMINGS, motionNoDelay } from './motion-timings';
+import type { MotionEvent } from './motion-plan';
+import {
+  MOTION_EASINGS,
+  MOTION_TIMINGS,
+  finalLineDuration,
+  motionNoDelay,
+} from './motion-timings';
 
 type MotionFrom = {
   opacity?: number;
@@ -23,14 +29,16 @@ export type MotionStep = {
     | 'resultBlock'
     | 'bars'
     | 'ladderRow'
-    | 'amount';
+    | 'amount'
+    | 'finalLines'
+    | 'finalAmount';
   from?: MotionFrom;
   durationMs: number;
   delayMs: number;
   staggerMs?: number;
   ease: string;
   countUp?: {
-    fromAttr: string;
+    fromAttr?: string;
     toAttr: string;
   };
 };
@@ -216,6 +224,70 @@ export function audienceResultSteps(): MotionStep[] {
       ease: MOTION_EASINGS.easeOut,
     },
   ];
+}
+
+export function finalResultSteps(): MotionStep[] {
+  return [
+    {
+      target: 'finalLines',
+      from: { opacity: 0, y: 8 },
+      durationMs: finalLineDuration,
+      delayMs: motionNoDelay,
+      staggerMs: MOTION_TIMINGS.finalLine,
+      ease: MOTION_EASINGS.easeOut,
+    },
+    {
+      target: 'finalAmount',
+      durationMs: MOTION_TIMINGS.finalCount,
+      delayMs: motionNoDelay,
+      ease: MOTION_EASINGS.easeOut,
+      countUp: {
+        toAttr: 'data-amount',
+      },
+    },
+  ];
+}
+
+export function batchEndMs(events: MotionEvent[]): number {
+  const stepList = (event: MotionEvent): MotionStep[] => {
+    if (event === 'question_enter') return questionEnterSteps();
+    if (event === 'lock_in') return lockInSteps();
+    if (event === 'reveal_correct') return revealCorrectSteps();
+    if (event === 'reveal_wrong') return revealWrongSteps();
+    if (event === 'reveal_timeout') return revealTimeoutSteps();
+    if (event === 'ladder_step') return ladderStepSteps();
+    if (event === 'final_result') return finalResultSteps();
+    if (event === 'fifty_fifty') return fiftyFiftySteps();
+    if (event === 'lifeline_phone') return phoneResultSteps();
+    if (event === 'lifeline_audience') return audienceResultSteps();
+    return [];
+  };
+
+  const hasReveal = events.some((event) =>
+    event === 'reveal_correct' ||
+    event === 'reveal_wrong' ||
+    event === 'reveal_timeout',
+  );
+  const finalIndex = events.indexOf('final_result');
+  if (finalIndex >= 0 && hasReveal) {
+    const otherEvents = events.filter((event, index) =>
+      index !== finalIndex && event !== 'final_result',
+    );
+    const latestOtherEnd = otherEvents.reduce(
+      (latest, event) => Math.max(latest, stepsEndMs(stepList(event))),
+      0,
+    );
+    const finalStart = latestOtherEnd + 300;
+    return Math.max(
+      latestOtherEnd,
+      finalStart + stepsEndMs(finalResultSteps()),
+    );
+  }
+
+  return events.reduce(
+    (total, event) => total + stepsEndMs(stepList(event)),
+    0,
+  );
 }
 
 export function stepsEndMs(steps: MotionStep[]): number {

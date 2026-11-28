@@ -520,6 +520,37 @@ export function findPureMotionBoundaryViolations(
     .sort();
 }
 
+export function extractDataAttributeSelectors(source: string): string[] {
+  const selectors = new Set<string>();
+  const stringPattern = /(['"`])([^'"`\n]*\[[^\]'`\n]+\][^'"`\n]*)\1/g;
+  for (const match of source.matchAll(stringPattern)) {
+    const value = match[2] ?? '';
+    for (const selectorMatch of value.matchAll(/\[[^\]]*data-[^\]]*\]/g)) {
+      selectors.add(selectorMatch[0]);
+    }
+  }
+  return [...selectors].sort();
+}
+
+export function dataAttributeSelectorMatchesSources(
+  selector: string,
+  sources: { path: string; source: string }[],
+): boolean {
+  const attributes = [...selector.matchAll(/\[([a-zA-Z][\w-]*)(?:=["']([^"']+)["'])?\]/g)];
+  if (attributes.length === 0) return false;
+  return attributes.every((attribute) => {
+    const name = attribute[1];
+    const value = attribute[2];
+    const namePattern = new RegExp(`\\b${escapeRegExp(name)}\\b`);
+    return sources
+      .filter((file) => !isTestFile(file.path))
+      .some((file) => {
+        if (!namePattern.test(file.source)) return false;
+        return value === undefined || file.source.includes(value);
+      });
+  });
+}
+
 export function findGsapImportViolations(
   files: { path: string; source: string }[],
 ): string[] {

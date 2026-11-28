@@ -65,6 +65,7 @@ export const barGrow = MOTION_TIMINGS.barGrow;
 export const barStagger = MOTION_TIMINGS.barStagger;
 export const finalCount = MOTION_TIMINGS.finalCount;
 export const finalLine = MOTION_TIMINGS.finalLine;
+export const finalLineDuration = MOTION_TIMINGS.resultFade;
 export const reducedFade = MOTION_TIMINGS.reducedFade;
 export const motionNoDelay = 0;
 

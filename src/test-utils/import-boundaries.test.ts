@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  dataAttributeSelectorMatchesSources,
+  extractDataAttributeSelectors,
   checkBoundaries,
   extractImports,
   findForbiddenPlayerLifelineFields,
@@ -33,6 +35,23 @@ function expectRule(
 ): void {
   expect(found.some((violation) => violation.rule === rule)).toBe(true);
 }
+
+describe('motion hook contract helpers', () => {
+  it('extracts fake selectors and rejects missing attributes while accepting present ones', () => {
+    expect(extractDataAttributeSelectors(
+      `const line = '[data-stage="final-line"]'; const root = '[data-countup="root"]';`,
+    )).toEqual(['[data-countup="root"]', '[data-stage="final-line"]']);
+
+    expect(dataAttributeSelectorMatchesSources(
+      '[data-stage="final-line"]',
+      [{ path: 'src/components/fake.tsx', source: '<p data-stage="missing">Line</p>' }],
+    )).toBe(false);
+    expect(dataAttributeSelectorMatchesSources(
+      '[data-stage="final-line"]',
+      [{ path: 'src/components/fake.tsx', source: '<p data-stage="final-line">Line</p>' }],
+    )).toBe(true);
+  });
+});
 
 describe('extractImports', () => {
   it('finds static, side effect, type only, multiline, export, dynamic, and require imports', () => {

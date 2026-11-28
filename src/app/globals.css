@@ -26,17 +26,19 @@ body {
   color: var(--color-bone);
 }
 
-.press {
-  transition:
-    color 120ms ease,
-    background-color 120ms ease,
-    border-color 120ms ease,
-    opacity 120ms ease,
-    transform 80ms ease;
-}
+@media (prefers-reduced-motion: no-preference) {
+  .press {
+    transition:
+      color 120ms ease,
+      background-color 120ms ease,
+      border-color 120ms ease,
+      opacity 120ms ease,
+      transform 80ms ease;
+  }
 
-.press:active:not(:disabled) {
-  transform: scale(0.98);
+  .press:active:not(:disabled) {
+    transform: scale(0.98);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -5,6 +5,7 @@ import type { MotionEvent } from './motion-plan';
 import {
   audienceResultSteps,
   fiftyFiftySteps,
+  finalResultSteps,
   ladderStepSteps,
   lockInSteps,
   phoneResultSteps,
@@ -39,6 +40,8 @@ function elementsForTarget(
     bars: '[data-bar]',
     ladderRow: '[data-ladder-row]',
     amount: '[data-stage="amount"]',
+    finalLines: '[data-stage="final-line"]',
+    finalAmount: '[data-stage="final-amount"]',
   };
 
   const elements = Array.from(root.querySelectorAll(selectorByTarget[target]));
@@ -68,7 +71,7 @@ function stepsForEvent(event: MotionEvent): MotionStep[] | null {
   if (event === 'fifty_fifty') return fiftyFiftySteps();
   if (event === 'lifeline_phone') return phoneResultSteps();
   if (event === 'lifeline_audience') return audienceResultSteps();
-  // final_result is implemented in the next slice.
+  if (event === 'final_result') return finalResultSteps();
   return null;
 }
 
@@ -119,21 +122,40 @@ export function runMotion(events: MotionEvent[], root: HTMLElement): (() => void
         onInterrupt: revertBatch,
       });
       let batchOffset = 0;
+      const hasReveal = batches.some((batch) =>
+        batch.event === 'reveal_correct' ||
+        batch.event === 'reveal_wrong' ||
+        batch.event === 'reveal_timeout',
+      );
+      const latestOtherEnd = batches
+        .filter((batch) => batch.event !== 'final_result')
+        .reduce((latest, batch) => Math.max(latest, batch.durationMs), 0);
 
       for (const batch of batches) {
+        if (batch.event === 'final_result' && hasReveal) {
+          batchOffset = (latestOtherEnd + 300) / 1000;
+        }
         for (const step of batch.steps) {
           const targets = elementsForTarget(root, step.target, batch.event);
           if (step.countUp !== undefined) {
             const amount = targets[0];
             if (!(amount instanceof HTMLElement)) continue;
-            const prevText = amount.getAttribute(step.countUp.fromAttr);
             const nextText = amount.getAttribute(step.countUp.toAttr);
-            if (prevText === null || nextText === null) continue;
-            const prev = Number.parseInt(prevText, 10);
+            if (nextText === null) continue;
+            const prevText = step.countUp.fromAttr === undefined
+              ? '0'
+              : amount.getAttribute(step.countUp.fromAttr);
+            if (step.countUp.fromAttr !== undefined && prevText === null) continue;
+            const prev = prevText === null
+              ? 0
+              : Number.parseInt(prevText, 10);
             const next = Number.parseInt(nextText, 10);
             if (!Number.isFinite(prev) || !Number.isFinite(next)) continue;
+            if (step.target === 'finalAmount' && next === 0) continue;
 
-            const countUpElement = amount.querySelector<HTMLElement>('[data-countup="root"]');
+            const countUpElement =
+              amount.closest<HTMLElement>('[data-countup="root"]') ??
+              amount.querySelector<HTMLElement>('[data-countup="root"]');
             const overlay = countUpElement?.querySelector<HTMLElement>('[data-countup-overlay]');
             if (
               countUpElement === null ||

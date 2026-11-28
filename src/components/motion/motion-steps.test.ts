@@ -7,7 +7,9 @@ import {
 } from './motion-timings';
 import {
   audienceResultSteps,
+  batchEndMs,
   fiftyFiftySteps,
+  finalResultSteps,
   ladderStepSteps,
   lockInSteps,
   phoneResultSteps,
@@ -33,6 +35,8 @@ const allowedTargets = new Set([
   'bars',
   'ladderRow',
   'amount',
+  'finalLines',
+  'finalAmount',
 ]);
 const allowedFromProperties = new Set(['opacity', 'y', 'x', 'scale', 'scaleX', 'scaleY']);
 const allowedStepProperties = new Set([
@@ -56,7 +60,9 @@ function expectStepsUseAllowedValues(steps: MotionStep[]) {
     if (step.staggerMs !== undefined) expect(timingValues).toContain(step.staggerMs);
     expect(step.ease).toBe(MOTION_EASINGS.easeOut);
     if (step.countUp !== undefined) {
-      expect(Object.keys(step.countUp)).toEqual(['fromAttr', 'toAttr']);
+      expect(Object.keys(step.countUp).every((property) =>
+        property === 'fromAttr' || property === 'toAttr',
+      )).toBe(true);
     }
   }
 }
@@ -174,5 +180,30 @@ describe('motion steps', () => {
         expect(first[1].countUp).not.toBe(second[1].countUp);
       }
     }
+  });
+
+  it('keeps the final result motion within two seconds', () => {
+    const steps = finalResultSteps();
+    expectStepsUseAllowedValues(steps);
+    expect(steps.map((step) => step.target)).toEqual(['finalLines', 'finalAmount']);
+    expect(steps[0].from).toEqual({ opacity: 0, y: 8 });
+    expect(steps[0].durationMs).toBe(MOTION_TIMINGS.resultFade);
+    expect(steps[0].staggerMs).toBe(MOTION_TIMINGS.finalLine);
+    expect(steps[1].countUp).toEqual({ toAttr: 'data-amount' });
+    expect(stepsEndMs(steps)).toBeLessThanOrEqual(2000);
+  });
+
+  it('returns fresh final result objects', () => {
+    const first = finalResultSteps();
+    const second = finalResultSteps();
+    expect(first).not.toBe(second);
+    expect(first[0]).not.toBe(second[0]);
+    expect(first[0].from).not.toBe(second[0].from);
+  });
+
+  it('places reveal and final result batches within their authored budgets', () => {
+    expect(batchEndMs(['reveal_wrong', 'final_result'])).toBeLessThanOrEqual(3500);
+    expect(batchEndMs(['reveal_correct', 'final_result'])).toBeLessThanOrEqual(3500);
+    expect(batchEndMs(['final_result'])).toBeLessThanOrEqual(2000);
   });
 });

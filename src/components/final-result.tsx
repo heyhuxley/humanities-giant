@@ -36,26 +36,30 @@ export function FinalResult({
 	return (
 		<section
 			aria-labelledby="final-result-heading"
+			data-stage="final-result"
 			className="min-w-0 space-y-6 rounded-sm border border-rule bg-slab p-5 sm:p-7"
 		>
 			<header className="min-w-0 space-y-3">
-				<h2 id="final-result-heading" className="font-display text-2xl font-semibold text-bone">
+				<h2 id="final-result-heading" data-stage="final-line" className="font-display text-2xl font-semibold text-bone">
 					Game over
 				</h2>
-				<p className="break-words font-display text-5xl font-semibold tabular-nums text-brass sm:text-6xl">
-					{formatNaira(winnings ?? 0)}
+				<p data-countup="root" className="break-words font-display text-5xl font-semibold tabular-nums text-brass sm:text-6xl">
+					<span data-stage="final-amount" data-amount={String(winnings ?? 0)}>
+						{formatNaira(winnings ?? 0)}
+					</span>
+					<span aria-hidden="true" data-countup-overlay></span>
 				</p>
-				<p className="break-words text-lg font-semibold text-bone text-pretty">
+				<p data-stage="final-line" className="break-words text-lg font-semibold text-bone text-pretty">
 					{resultHeadline({reason: finishReason, winnings, contestantName})}
 				</p>
 				<p className="text-bone-muted">{describeFinishReason(finishReason)}</p>
-				<p className="text-bone-muted">
+				<p data-stage="final-line" className="text-bone-muted">
 					{correctCount({position: position ?? 0, lastResult})} of 15 questions answered correctly
 				</p>
 			</header>
 			
 			<div className="space-y-2 border-t border-rule pt-4">
-				<h3 className="font-display text-lg font-semibold text-bone">Lifelines used</h3>
+				<h3 data-stage="final-line" className="font-display text-lg font-semibold text-bone">Lifelines used</h3>
 				{names.length > 0 ? (
 					<ul className="flex flex-wrap gap-2">
 						{names.map((name) => <li key={name}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MOTION_TIMINGS,
+  finalLineDuration,
   motionTimings,
   totalQuestionEnterMs,
 } from './motion-timings';
@@ -39,5 +40,8 @@ describe('motion timings', () => {
     expect(MOTION_TIMINGS.resultFade).toBe(300);
     expect(MOTION_TIMINGS.barGrow).toBe(600);
     expect(MOTION_TIMINGS.barStagger).toBe(80);
+    expect(MOTION_TIMINGS.finalCount).toBe(1200);
+    expect(MOTION_TIMINGS.finalLine).toBe(200);
+    expect(finalLineDuration).toBe(MOTION_TIMINGS.resultFade);
   });
 });
