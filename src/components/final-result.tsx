@@ -73,7 +73,7 @@ export function FinalResult({
 			{typeof correctIndex === 'number' && question !== null ? (
 				<div className="min-w-0 space-y-3 border-t border-rule pt-5">
 					<h3 className="font-display text-lg font-semibold text-bone">Last question</h3>
-					<p className="break-words text-bone text-pretty">{question.text}</p>
+					<p className="wrap-break-word text-bone text-pretty">{question.text}</p>
 					<ol className="grid min-w-0 grid-cols-1 gap-2">
 						{question.options.map((option, index) => (
 							<li key={index} className="min-w-0">
