@@ -532,23 +532,295 @@ export function extractDataAttributeSelectors(source: string): string[] {
   return [...selectors].sort();
 }
 
+export type DataAttributeEmitter = {
+  filePath: string;
+  line: number;
+  kind: 'exact' | 'name-only' | 'dynamic';
+  literalLine?: number;
+};
+
+function stripCommentLikeText(source: string): string {
+  let result = '';
+  let index = 0;
+  let quote: '"' | "'" | '`' | null = null;
+
+  while (index < source.length) {
+    const char = source[index];
+    const next = source[index + 1];
+
+    if (quote !== null) {
+      result += char;
+      if (char === '\\' && index + 1 < source.length) {
+        result += source[index + 1];
+        index += 2;
+        continue;
+      }
+      if (char === quote) quote = null;
+      index += 1;
+      continue;
+    }
+
+    if (char === '"' || char === "'" || char === '`') {
+      quote = char;
+      result += char;
+      index += 1;
+      continue;
+    }
+    if (char === '/' && next === '/') {
+      result += '  ';
+      index += 2;
+      while (index < source.length && source[index] !== '\n') {
+        result += source[index] === '\r' ? '\r' : ' ';
+        index += 1;
+      }
+      continue;
+    }
+    if (char === '/' && next === '*') {
+      result += '  ';
+      index += 2;
+      while (index < source.length) {
+        if (source[index] === '*' && source[index + 1] === '/') {
+          result += '  ';
+          index += 2;
+          break;
+        }
+        result += source[index] === '\n' || source[index] === '\r'
+          ? source[index]
+          : ' ';
+        index += 1;
+      }
+      continue;
+    }
+    result += char;
+    index += 1;
+  }
+  return result;
+}
+
+function lineAt(source: string, index: number): number {
+  let line = 1;
+  for (let cursor = 0; cursor < index; cursor += 1) {
+    if (source[cursor] === '\n') line += 1;
+  }
+  return line;
+}
+
+function eligibleEmitterFile(filePath: string): boolean {
+  const path = normalizedPath(filePath);
+  if (!/\.(?:tsx?|jsx?)$/i.test(path)) return false;
+  if (!/\.(?:ts|tsx)$/i.test(path)) return false;
+  if (isTestFile(path)) return false;
+  if (path.startsWith('src/test-utils/')) return false;
+  if (isUnder(path, 'src/components/motion')) return false;
+  return isUnder(path, 'src/app') || isUnder(path, 'src/components');
+}
+
+function jsxOpeningTagRanges(source: string): { start: number; end: number; text: string }[] {
+  const ranges: { start: number; end: number; text: string }[] = [];
+  let index = 0;
+  while (index < source.length) {
+    if (source[index] !== '<') {
+      index += 1;
+      continue;
+    }
+    const tagName = source.slice(index + 1).match(/^[A-Za-z][\w.]*/);
+    if (tagName === null) {
+      index += 1;
+      continue;
+    }
+    let cursor = index + 1;
+    let braceDepth = 0;
+    let quote: '"' | "'" | null = null;
+    for (; cursor < source.length; cursor += 1) {
+      const char = source[cursor];
+      if (quote !== null) {
+        if (char === quote) quote = null;
+        continue;
+      }
+      if (char === '"' || char === "'") {
+        quote = char;
+        continue;
+      }
+      if (char === '{') braceDepth += 1;
+      if (char === '}') braceDepth = Math.max(0, braceDepth - 1);
+      if (char === '>' && braceDepth === 0) break;
+    }
+    if (cursor < source.length) {
+      ranges.push({
+        start: index,
+        end: cursor + 1,
+        text: source.slice(index + 1, cursor + 1),
+      });
+      index = cursor + 1;
+    } else {
+      break;
+    }
+  }
+  return ranges;
+}
+
+type ParsedAttribute = {
+  name: string;
+  kind: 'bare' | 'string' | 'braced-string' | 'expression';
+  value?: string;
+  start: number;
+};
+
+function parseAttributes(tagText: string, tagStart: number): ParsedAttribute[] {
+  const attributes: ParsedAttribute[] = [];
+  const attributePattern = /(?:^|\s)([A-Za-z_:][\w:-]*)\s*=/g;
+  for (const match of tagText.matchAll(attributePattern)) {
+    const name = match[1];
+    if (name === undefined) continue;
+    const equalsIndex = (match.index ?? 0) + match[0].lastIndexOf('=');
+    let cursor = equalsIndex + 1;
+    while (/\s/.test(tagText[cursor] ?? '')) cursor += 1;
+    const char = tagText[cursor];
+    if (char === '"' || char === "'") {
+      const quote = char;
+      const valueStart = cursor + 1;
+      const valueEnd = tagText.indexOf(quote, valueStart);
+      if (valueEnd >= 0) {
+        attributes.push({
+          name,
+          kind: 'string',
+          value: tagText.slice(valueStart, valueEnd),
+          start: tagStart + 1 + (match.index ?? 0),
+        });
+      }
+      continue;
+    }
+    if (char === '{') {
+      let braceDepth = 0;
+      let end = cursor;
+      let quote: '"' | "'" | null = null;
+      for (; end < tagText.length; end += 1) {
+        const inner = tagText[end];
+        if (quote !== null) {
+          if (inner === quote) quote = null;
+          continue;
+        }
+        if (inner === '"' || inner === "'") {
+          quote = inner;
+          continue;
+        }
+        if (inner === '{') braceDepth += 1;
+        if (inner === '}') {
+          braceDepth -= 1;
+          if (braceDepth === 0) break;
+        }
+      }
+      const inner = tagText.slice(cursor + 1, end).trim();
+      const stringMatch = inner.match(/^(['"])(.*?)\1$/);
+      attributes.push({
+        name,
+        kind: stringMatch === null ? 'expression' : 'braced-string',
+        value: stringMatch === null ? undefined : stringMatch[2],
+        start: tagStart + 1 + (match.index ?? 0),
+      });
+    }
+  }
+
+  const barePattern = /(?:^|\s)(data-[\w-]+)(?=\s*(?:\/|>|\s|$))/g;
+  for (const match of tagText.matchAll(barePattern)) {
+    const name = match[1];
+    if (name === undefined || attributes.some((attribute) => attribute.name === name)) continue;
+    attributes.push({
+      name,
+      kind: 'bare',
+      start: tagStart + 1 + (match.index ?? 0),
+    });
+  }
+  return attributes;
+}
+
+export function findDataAttributeEmitters(
+  selector: string,
+  sources: { path: string; source: string }[],
+): DataAttributeEmitter[] {
+  const attributes = [...selector.matchAll(/\[([a-zA-Z][\w-]*)(?:=["']([^"']+)["'])?\]/g)]
+    .map((match) => ({ name: match[1], value: match[2] }));
+  if (attributes.length === 0) return [];
+
+  const emitters: DataAttributeEmitter[] = [];
+  for (const file of sources) {
+    if (!eligibleEmitterFile(file.path)) continue;
+    const cleaned = stripCommentLikeText(file.source);
+    const tagRanges = jsxOpeningTagRanges(cleaned);
+    for (const attribute of attributes) {
+      let foundForAttribute = false;
+      for (const range of tagRanges) {
+        for (const parsed of parseAttributes(range.text, range.start)) {
+          if (parsed.name !== attribute.name) continue;
+          if (attribute.value === undefined) {
+            emitters.push({
+              filePath: normalizedPath(file.path),
+              line: lineAt(cleaned, parsed.start),
+              kind: 'name-only',
+            });
+            foundForAttribute = true;
+            continue;
+          }
+          if (
+            (parsed.kind === 'string' || parsed.kind === 'braced-string') &&
+            parsed.value === attribute.value
+          ) {
+            emitters.push({
+              filePath: normalizedPath(file.path),
+              line: lineAt(cleaned, parsed.start),
+              kind: 'exact',
+            });
+            foundForAttribute = true;
+            continue;
+          }
+          if (parsed.kind === 'expression') {
+            const literalPattern = new RegExp(
+              `(['"])${escapeRegExp(attribute.value)}\\1`,
+            );
+            const literalMatch = cleaned.match(literalPattern);
+            if (literalMatch !== null) {
+              emitters.push({
+                filePath: normalizedPath(file.path),
+                line: lineAt(cleaned, parsed.start),
+                kind: 'dynamic',
+                literalLine: lineAt(cleaned, literalMatch.index ?? 0),
+              });
+              foundForAttribute = true;
+            }
+          }
+        }
+      }
+      if (foundForAttribute) continue;
+    }
+  }
+
+  return emitters
+    .filter((emitter, index, list) =>
+      list.findIndex((item) =>
+        item.filePath === emitter.filePath &&
+        item.line === emitter.line &&
+        item.kind === emitter.kind,
+      ) === index,
+    )
+    .sort((a, b) =>
+      a.filePath.localeCompare(b.filePath) ||
+      a.line - b.line ||
+      a.kind.localeCompare(b.kind),
+    );
+}
+
 export function dataAttributeSelectorMatchesSources(
   selector: string,
   sources: { path: string; source: string }[],
 ): boolean {
   const attributes = [...selector.matchAll(/\[([a-zA-Z][\w-]*)(?:=["']([^"']+)["'])?\]/g)];
   if (attributes.length === 0) return false;
-  return attributes.every((attribute) => {
-    const name = attribute[1];
-    const value = attribute[2];
-    const namePattern = new RegExp(`\\b${escapeRegExp(name)}\\b`);
-    return sources
-      .filter((file) => !isTestFile(file.path))
-      .some((file) => {
-        if (!namePattern.test(file.source)) return false;
-        return value === undefined || file.source.includes(value);
-      });
-  });
+  return attributes.every((attribute) =>
+    findDataAttributeEmitters(
+      `[${attribute[1]}${attribute[2] === undefined ? '' : `="${attribute[2]}"`}]`,
+      sources,
+    ).length > 0,
+  );
 }
 
 export function findGsapImportViolations(

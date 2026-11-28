@@ -2,8 +2,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  dataAttributeSelectorMatchesSources,
   extractDataAttributeSelectors,
+  findDataAttributeEmitters,
 } from '../../test-utils/import-boundaries';
 
 type SourceFile = { path: string; source: string };
@@ -43,10 +43,19 @@ describe('motion hook contracts', () => {
 
     expect(selectors.length).toBeGreaterThanOrEqual(10);
     for (const selector of selectors) {
+      const emitters = findDataAttributeEmitters(selector, componentSources);
       expect(
-        dataAttributeSelectorMatchesSources(selector, componentSources),
+        emitters.length > 0,
         selector,
       ).toBe(true);
+      expect(
+        emitters.length > 0
+          ? emitters.map((emitter) =>
+            `${emitter.filePath}:${emitter.line}:${emitter.kind}`,
+          )
+          : [],
+        selector,
+      ).not.toEqual([]);
     }
 
     expect(extractDataAttributeSelectors(

@@ -43,13 +43,13 @@ export function FinalResult({
 				<h2 id="final-result-heading" data-stage="final-line" className="font-display text-2xl font-semibold text-bone">
 					Game over
 				</h2>
-				<p data-countup="root" className="break-words font-display text-5xl font-semibold tabular-nums text-brass sm:text-6xl">
-					<span data-stage="final-amount" data-amount={String(winnings ?? 0)}>
+				<p data-countup="root" className="wrap-break-word font-display text-5xl font-semibold tabular-nums text-brass sm:text-6xl">
+					<span data-stage="final-amounts" data-amount={String(winnings ?? 0)}>
 						{formatNaira(winnings ?? 0)}
 					</span>
 					<span aria-hidden="true" data-countup-overlay></span>
 				</p>
-				<p data-stage="final-line" className="break-words text-lg font-semibold text-bone text-pretty">
+				<p data-stage="final-line" className="wrap-break-word text-lg font-semibold text-bone text-pretty">
 					{resultHeadline({reason: finishReason, winnings, contestantName})}
 				</p>
 				<p className="text-bone-muted">{describeFinishReason(finishReason)}</p>

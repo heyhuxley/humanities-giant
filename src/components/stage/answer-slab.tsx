@@ -58,7 +58,7 @@ export function AnswerSlab({
         {letter}
       </span>
       <span className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3">
-        <span className={state === 'removed' ? 'break-words line-through' : 'break-words'}>
+        <span className={state === 'removed' ? 'wrap-break-word line-through' : 'wrap-break-word'}>
           {text}
         </span>
         {icon || label ? (

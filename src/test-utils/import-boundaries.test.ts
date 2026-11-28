@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   dataAttributeSelectorMatchesSources,
   extractDataAttributeSelectors,
+  findDataAttributeEmitters,
   checkBoundaries,
   extractImports,
   findForbiddenPlayerLifelineFields,
@@ -41,15 +42,97 @@ describe('motion hook contract helpers', () => {
     expect(extractDataAttributeSelectors(
       `const line = '[data-stage="final-line"]'; const root = '[data-countup="root"]';`,
     )).toEqual(['[data-countup="root"]', '[data-stage="final-line"]']);
+  });
 
+  it('matches exact and name-only JSX attributes from eligible files', () => {
     expect(dataAttributeSelectorMatchesSources(
-      '[data-stage="final-line"]',
-      [{ path: 'src/components/fake.tsx', source: '<p data-stage="missing">Line</p>' }],
+      '[data-slab]',
+      [{ path: 'src/components/fake.tsx', source: '<button data-slab={letter} />' }],
+    )).toBe(true);
+    expect(dataAttributeSelectorMatchesSources(
+      '[data-stage="final-amount"]',
+      [{ path: 'src/components/fake.tsx', source: '<span data-stage="final-amount" />' }],
+    )).toBe(true);
+    expect(dataAttributeSelectorMatchesSources(
+      "[data-stage='final-amount']",
+      [{ path: 'src/components/fake.tsx', source: "<span data-stage='final-amount' />" }],
+    )).toBe(true);
+    expect(dataAttributeSelectorMatchesSources(
+      '[data-stage="final-amount"]',
+      [{ path: 'src/components/fake.tsx', source: '<span data-stage={"final-amount"} />' }],
+    )).toBe(true);
+    expect(dataAttributeSelectorMatchesSources(
+      "[data-stage=\"final-amount\"]",
+      [{ path: 'src/components/fake.tsx', source: "<span data-stage={'final-amount'} />" }],
+    )).toBe(true);
+  });
+
+  it('rejects prefix names and different valued attributes', () => {
+    for (const source of [
+      '<button data-slabs={letter} />',
+      '<button data-slabx={letter} />',
+    ]) {
+      expect(dataAttributeSelectorMatchesSources(
+        '[data-slab]',
+        [{ path: 'src/components/fake.tsx', source }],
+      )).toBe(false);
+    }
+    expect(dataAttributeSelectorMatchesSources(
+      '[data-stage="final-amount"]',
+      [{ path: 'src/components/fake.tsx', source: '<span data-stage="final-amounts" />' }],
     )).toBe(false);
     expect(dataAttributeSelectorMatchesSources(
-      '[data-stage="final-line"]',
-      [{ path: 'src/components/fake.tsx', source: '<p data-stage="final-line">Line</p>' }],
+      '[data-stage="final-amount"]',
+      [{ path: 'src/components/fake.tsx', source: '<span data-amount="500000" />' }],
+    )).toBe(false);
+  });
+
+  it('rejects commented out, CSS string, test, motion, and spread emissions', () => {
+    const fakeSources = [
+      { path: 'src/components/fake.tsx', source: '// <span data-stage="final-amount" />' },
+      { path: 'src/components/fake.tsx', source: '/* <span data-stage="final-amount" /> */' },
+      { path: 'src/components/fake.tsx', source: '{/* <span data-stage="final-amount" /> */}' },
+      { path: 'src/components/fake.tsx', source: 'const css = "[data-stage=\\"final-amount\\"]";' },
+      { path: 'src/components/fake.test.tsx', source: '<span data-stage="final-amount" />' },
+      { path: 'src/components/motion/fake.tsx', source: '<span data-stage="final-amount" />' },
+      { path: 'src/components/fake.tsx', source: '<span {...props} />' },
+    ];
+    for (const source of fakeSources) {
+      expect(dataAttributeSelectorMatchesSources(
+        '[data-stage="final-amount"]',
+        [source],
+      ), `${source.path}: ${source.source}`).toBe(false);
+    }
+  });
+
+  it('requires both an expression attribute and a same-file literal for dynamic valued selectors', () => {
+    expect(dataAttributeSelectorMatchesSources(
+      '[data-state="correct"]',
+      [{ path: 'src/components/fake.tsx', source: "type State = 'correct';\n<span data-state={state} />" }],
     )).toBe(true);
+    expect(dataAttributeSelectorMatchesSources(
+      '[data-state="correct"]',
+      [{ path: 'src/components/fake.tsx', source: '<span data-state={state} />' }],
+    )).toBe(false);
+    expect(dataAttributeSelectorMatchesSources(
+      '[data-state="correct"]',
+      [{ path: 'src/components/fake.tsx', source: "const value = 'correct';\n<span data-other={state} />" }],
+    )).toBe(false);
+  });
+
+  it('finds emitters and reports exact, name-only, and dynamic kinds', () => {
+    expect(findDataAttributeEmitters(
+      '[data-stage="final-amount"]',
+      [{ path: 'src/components/fake.tsx', source: '<span data-stage="final-amount" />' }],
+    )[0]?.kind).toBe('exact');
+    expect(findDataAttributeEmitters(
+      '[data-slab]',
+      [{ path: 'src/components/fake.tsx', source: '<button data-slab={letter} />' }],
+    )[0]?.kind).toBe('name-only');
+    expect(findDataAttributeEmitters(
+      '[data-state="correct"]',
+      [{ path: 'src/components/fake.tsx', source: "type State = 'correct';\n<span data-state={state} />" }],
+    )[0]?.kind).toBe('dynamic');
   });
 });
 
